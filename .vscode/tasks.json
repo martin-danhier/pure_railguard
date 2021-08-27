@@ -1,0 +1,75 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        // Premake task
+        {
+            "label": "Run Premake",
+            "type": "shell",
+            "command": "premake5",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "args": [
+                "gmake"
+            ],
+            "windows": {
+                "command": "premake5",
+                "args": [
+                    "vs2019",
+                ]
+            },
+            "problemMatcher": []
+        },
+        // Build tasks
+        {
+            "label": "Build (Debug)",
+            "type": "shell",
+            "command": "make",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "args": [
+                "-C",
+                "build",
+                "config=debug_linux"
+            ],
+            "problemMatcher": [],
+            "group": "build",
+            "dependsOn": "Run Premake",
+            "windows": {
+                "command": "MSBuild.exe",
+                "args": [
+                    "./build/railguard.sln",
+                    "/property:Configuration=Debug",
+                    "/property:Platform=Win64"
+                ]
+            }
+        },
+        {
+            "label": "Build (Release)",
+            "type": "shell",
+            "command": "make",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "args": [
+                "-C",
+                "build",
+                "config=release_linux"
+            ],
+            "problemMatcher": [],
+            "group": "build",
+            "dependsOn": "Run Premake",
+            "windows": {
+                "command": "MSBuild.exe",
+                "args": [
+                    "./build/railguard.sln",
+                    "/property:Configuration=Release",
+                    "/property:Platform=Win64"
+                ]
+            }
+        }
+    ]
+}

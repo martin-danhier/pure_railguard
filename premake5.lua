@@ -1,5 +1,9 @@
+-- Disable diagnostics for Lua because premake tags are not recognized
+---@diagnostic disable: undefined-field
+---@diagnostic disable: undefined-global
+
 -- Global settings
-workspace "railguard"
+workspace "railguard";
 
 
 -------------------------------------------------------------------

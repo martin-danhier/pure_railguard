@@ -1,0 +1,31 @@
+{
+    // Disable C/C++ features that are already covered by ccls
+    "C_Cpp.intelliSenseEngine": "Disabled",
+    "C_Cpp.autocomplete": "Disabled",
+    "C_Cpp.errorSquiggles": "Disabled",
+    "C_Cpp.formatting": "Disabled",
+    // ccls settings
+    "ccls.cache.directory": ".ccls-cache",
+    "ccls.codeLens.enabled": false,
+    "ccls.highlight.type.colors": [
+        "#4ec9b0",
+    ],
+    "ccls.highlight.typeAlias.face": [
+        "type"
+    ],
+    "ccls.highlight.enum.face": [
+        "variable"
+    ],
+    "ccls.highlight.variable.face": ["enabled"],
+    "ccls.highlight.type.face": [
+        "enabled"
+    ],
+    "ccls.highlight.namespace.colors": [
+        "#4ec9b0"
+    ],
+    "ccls.highlight.variable.colors": [
+        "#9cdcfe",
+    ],
+    // Formatter
+    "editor.defaultFormatter": "xaver.clang-format"
+}
