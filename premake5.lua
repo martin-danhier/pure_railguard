@@ -160,13 +160,37 @@ project "shaders"
         buildoutputs {"bin/shaders/%{file.name}.spv"}
    filter {}
 
+--==== Volk Vulkan Loader ====--
+
+project "volk"
+    kind "StaticLib"
+    language "C"
+    architecture "x64"
+    files {
+        "external/volk/volk.c",
+        "external/volk/volk.h"
+    }
+
+    includedirs {
+        VULKAN_INCLUDE_DIR
+    }
+    libdirs {
+        VULKAN_LIB_DIR
+    }
+
+    -- Platform specific settings
+    filter "platforms:Linux"
+        links "dl"
+    filter{}
+
+
 --==== Main Project ====--
 
 project "railguard"
     -- Global project settings
     kind "ConsoleApp"
     language "C"
-    dependson "shaders"
+    dependson {"shaders", "volk"}
     architecture "x64"
     targetdir "bin/%{cfg.buildcfg}"
 
@@ -177,6 +201,7 @@ project "railguard"
     includedirs {
         VULKAN_INCLUDE_DIR,
         SDL_INCLUDE_DIR,
+        "external/volk",
         "include"
     }
 
@@ -187,7 +212,7 @@ project "railguard"
     }
 
     -- Add links
-    links {"SDL2"}
+    links {"SDL2", "volk"}
 
     -- Platform specific settings
     filter "platforms:Win64"

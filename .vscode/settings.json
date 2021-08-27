@@ -27,5 +27,29 @@
         "#9cdcfe",
     ],
     // Formatter
-    "editor.defaultFormatter": "xaver.clang-format"
+    "editor.defaultFormatter": "xaver.clang-format",
+    // Hide files to keep the side panel clean
+    "files.exclude": {
+        "**/.git": false,
+        "**/.svn": false,
+        "**/.hg": false,
+        "**/CVS": false,
+        "**/.DS_Store": false,
+        "premake5.lua": false,
+        ".gitignore": false,
+        ".ccls": false,
+        ".clang-format": false,
+        "cmakebuild": false,
+        "build": false,
+        "bin": false,
+        ".vscode": false,
+        ".idea": false,
+        ".ccls-cache": false
+    },
+    "explorerExclude.backup": null,
+    // File associations
+    "files.associations": {
+        "*.c": "c",
+        "*.h": "c"
+    }
 }
