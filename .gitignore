@@ -1,0 +1,7 @@
+# Editor directories
+.ccls-cache
+
+# Build directories
+bin
+build
+cmakebuild
