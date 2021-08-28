@@ -44,7 +44,9 @@
         "bin": false,
         ".vscode": false,
         ".idea": false,
-        ".ccls-cache": false
+        ".ccls-cache": false,
+        "external": false,
+        ".gitmodules": false
     },
     "explorerExclude.backup": null,
     // File associations

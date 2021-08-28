@@ -163,60 +163,84 @@ project "shaders"
 --==== Volk Vulkan Loader ====--
 
 project "volk"
-    kind "StaticLib"
-    language "C"
-    architecture "x64"
-    files {
-        "external/volk/volk.c",
-        "external/volk/volk.h"
-    }
+   kind "StaticLib"
+   language "C"
+   architecture "x64"
+   files {
+      "external/volk/volk.c",
+      "external/volk/volk.h"
+   }
 
-    includedirs {
-        VULKAN_INCLUDE_DIR
-    }
-    libdirs {
-        VULKAN_LIB_DIR
-    }
+   includedirs {
+       VULKAN_INCLUDE_DIR
+   }
+   libdirs {
+       VULKAN_LIB_DIR
+   }
 
-    -- Platform specific settings
-    filter "platforms:Linux"
-        links "dl"
-    filter{}
+   -- Platform specific settings
+   filter "platforms:Linux"
+       links "dl"
+   filter{}
+
+--==== VkBootstrap ====--
+project "vkbootstrap"
+   kind "StaticLib"
+   language "C++"
+   architecture "x64"
+
+   files {
+      "./external/vk-bootstrap/src/**.cpp",
+      "./external/vk-bootstrap/src/**.h"
+   }
+
+   includedirs {
+      VULKAN_INCLUDE_DIR
+   }
+   libdirs {
+      VULKAN_LIB_DIR
+   }
+
+   -- Platform specific settings
+   filter "platforms:Linux"
+       links "dl"
+   filter{}
 
 
 --==== Main Project ====--
 
 project "railguard"
-    -- Global project settings
-    kind "ConsoleApp"
-    language "C"
-    dependson {"shaders", "volk"}
-    architecture "x64"
-    targetdir "bin/%{cfg.buildcfg}"
+   -- Global project settings
+   kind "ConsoleApp"
+   language "C++"
+   dependson {"shaders", "volk", "vkbootstrap"}
+   architecture "x64"
+   targetdir "bin/%{cfg.buildcfg}"
 
-    -- Add source files
-    files "src/**.c"
+   -- Add source files
+   files "src/**.cpp"
 
-    -- Add header dependencies
-    includedirs {
-        VULKAN_INCLUDE_DIR,
-        SDL_INCLUDE_DIR,
-        "external/volk",
-        "include"
-    }
+   -- Add header dependencies
+   includedirs {
+       VULKAN_INCLUDE_DIR,
+       SDL_INCLUDE_DIR,
+       "external/volk",
+       "external/vkboostrap/src"
+       "include"
+   }
 
-    -- Add lib dependencies
-    libdirs {
-       VULKAN_LIB_DIR,
-       SDL_LIB_DIR
-    }
+   -- Add lib dependencies
+   libdirs {
+      VULKAN_LIB_DIR,
+      SDL_LIB_DIR
+   }
 
-    -- Add links
-    links {"SDL2", "volk"}
+   -- Add links
+   links {"SDL2", "volk", "vkbootstrap"}
 
-    -- Platform specific settings
-    filter "platforms:Win64"
-        links "SDL2main"
-    filter "platforms:Linux"
-        links "dl"
-    filter{}
+   -- Platform specific settings
+   filter "platforms:Win64"
+       links "SDL2main"
+   filter "platforms:Linux"
+       links "dl"
+   filter{}
