@@ -15,13 +15,13 @@ configurations {"Debug", "Release"}
 -- Debug config --
 filter ("configurations:Debug")
 
-    defines {"DEBUG", "USE_VK_VALIDATION_LAYERS"}
+    defines {"DEBUG", "USE_VK_VALIDATION_LAYERS", "RENDERER_VULKAN", "WINDOW_SDL2"}
     symbols "On"
 
 -- Release config --
 filter ("configurations:Release")
 
-    defines {"NDEBUG"}
+    defines {"NDEBUG", "RENDERER_VULKAN", "WINDOW_SDL2"}
     optimize "On"
 
 filter {}
@@ -184,27 +184,27 @@ project "volk"
    filter{}
 
 --==== VkBootstrap ====--
-project "vkbootstrap"
-   kind "StaticLib"
-   language "C++"
-   architecture "x64"
-
-   files {
-      "./external/vk-bootstrap/src/**.cpp",
-      "./external/vk-bootstrap/src/**.h"
-   }
-
-   includedirs {
-      VULKAN_INCLUDE_DIR
-   }
-   libdirs {
-      VULKAN_LIB_DIR
-   }
-
-   -- Platform specific settings
-   filter "platforms:Linux"
-       links "dl"
-   filter{}
+-- project "vkbootstrap"
+--    kind "StaticLib"
+--    language "C++"
+--    architecture "x64"
+--
+--    files {
+--       "./external/vk-bootstrap/src/**.cpp",
+--       "./external/vk-bootstrap/src/**.h"
+--    }
+--
+--    includedirs {
+--       VULKAN_INCLUDE_DIR
+--    }
+--    libdirs {
+--       VULKAN_LIB_DIR
+--    }
+--
+--    -- Platform specific settings
+--    filter "platforms:Linux"
+--        links "dl"
+--    filter{}
 
 
 --==== Main Project ====--
@@ -212,20 +212,20 @@ project "vkbootstrap"
 project "railguard"
    -- Global project settings
    kind "ConsoleApp"
-   language "C++"
-   dependson {"shaders", "volk", "vkbootstrap"}
+   language "C"
+   cdialect "C11"
+   dependson {"shaders", "volk"}
    architecture "x64"
    targetdir "bin/%{cfg.buildcfg}"
 
    -- Add source files
-   files "src/**.cpp"
+   files "src/**.c"
 
    -- Add header dependencies
    includedirs {
        VULKAN_INCLUDE_DIR,
        SDL_INCLUDE_DIR,
        "external/volk",
-       "external/vkboostrap/src"
        "include"
    }
 
@@ -236,7 +236,7 @@ project "railguard"
    }
 
    -- Add links
-   links {"SDL2", "volk", "vkbootstrap"}
+   links {"SDL2", "volk"}
 
    -- Platform specific settings
    filter "platforms:Win64"

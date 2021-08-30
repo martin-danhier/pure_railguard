@@ -53,5 +53,8 @@
     "files.associations": {
         "*.c": "c",
         "*.h": "c"
-    }
+    },
+    "cSpell.words": [
+        "volk"
+    ]
 }

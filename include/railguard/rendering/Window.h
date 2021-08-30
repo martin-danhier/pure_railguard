@@ -1,25 +1,29 @@
 #pragma once
 
-#include <cstdint>
-#include <railguard/utils/Strings.h>
 
-struct SDL_Window;
+// --==== Types ====--
 
-namespace railguard::rendering
+typedef struct rg_extent_2d
 {
-    struct Extent2D {
-        uint32_t width;
-        uint32_t height;
-    };
+    unsigned int width;
+    unsigned int height;
+} rg_extent_2d;
 
-    class Window
-    {
-        SDL_Window *_window = nullptr;
-        Extent2D _windowExtent;
-        String _title;
+typedef struct rg_window rg_window;
 
+// Also forward declare to avoid includes
+typedef struct rg_array rg_array;
 
-      public:
-        Window();
-    };
-} // namespace railguard::rendering
+// --==== Window Manager ====--
+
+void rg_start_window_manager();
+void rg_stop_window_manager();
+
+// --==== Window ====--
+
+rg_window *rg_create_window(rg_extent_2d extent, const char *title);
+void rg_destroy_window(rg_window **window);
+
+#ifdef RENDERER_VULKAN
+rg_array rg_window_get_required_vulkan_extensions(rg_window *window, unsigned int extra_array_size);
+#endif
