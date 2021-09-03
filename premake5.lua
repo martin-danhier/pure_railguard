@@ -180,10 +180,14 @@ project "volk"
 
    -- Platform specific settings
    filter "platforms:Linux"
-       links "dl"
+      links "dl"
    filter{}
 
+
 --==== VkBootstrap ====--
+
+
+
 -- project "vkbootstrap"
 --    kind "StaticLib"
 --    language "C++"
@@ -206,17 +210,38 @@ project "volk"
 --        links "dl"
 --    filter{}
 
+--==== VulkanMemoryAllocator ====--
+
+project "vma"
+
+   kind "StaticLib"
+   language "C++"
+   architecture "x64"
+   targetdir "bin/%{cfg.buildcfg}"
+   files {
+       "external/vma_implementation.cpp",
+   }
+   includedirs {
+       VULKAN_INCLUDE_DIR,
+       "external/vma/include"
+   }
+   filter "platforms:Linux"
+       links "dl"
+   filter{}
 
 --==== Main Project ====--
 
 project "railguard"
    -- Global project settings
    kind "ConsoleApp"
-   language "C"
+   language "C++"
    cdialect "C11"
-   dependson {"shaders", "volk"}
+   dependson {"shaders", "volk", "vma"}
    architecture "x64"
    targetdir "bin/%{cfg.buildcfg}"
+   defines {
+       "VK_NO_PROTOTYPE"
+   }
 
    -- Add source files
    files "src/**.c"
@@ -226,6 +251,7 @@ project "railguard"
        VULKAN_INCLUDE_DIR,
        SDL_INCLUDE_DIR,
        "external/volk",
+       "external/vma/include",
        "include"
    }
 
@@ -236,7 +262,7 @@ project "railguard"
    }
 
    -- Add links
-   links {"SDL2", "volk"}
+   links {"SDL2", "volk", "vma"}
 
    -- Platform specific settings
    filter "platforms:Win64"

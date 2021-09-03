@@ -102,6 +102,13 @@ rg_array rg_window_get_required_vulkan_extensions(rg_window *window, unsigned in
     // Return the array
     return required_extensions;
 }
+
+VkSurfaceKHR rg_window_get_vulkan_surface(rg_window *window, VkInstance vulkan_instance)
+{
+    VkSurfaceKHR surface = NULL;
+    SDL_Vulkan_CreateSurface(window->sdl_window, vulkan_instance, &surface);
+    return surface;
+}
 #endif
 
 #endif
