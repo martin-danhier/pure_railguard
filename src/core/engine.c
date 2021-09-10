@@ -41,7 +41,7 @@ rg_engine *rg_create_engine(void)
 void rg_destroy_engine(rg_engine **engine)
 {
     // Cleanup
-    rg_destroy_renderer(&(*engine)->renderer);
+    rg_destroy_renderer(&(*engine)->renderer, (*engine)->window);
     rg_destroy_window(&(*engine)->window);
 
     // Stop window manager

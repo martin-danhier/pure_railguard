@@ -22,25 +22,19 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="38b0f475-f378-4382-948a-7f7ab04cde54" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/deployment.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/include/railguard/core/engine.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/include/railguard/core/window.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/include/railguard/utils/event_sender.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/include/railguard/utils/maps.h" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/core/engine.c" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/utils/event_sender.c" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/utils/maps.c" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/tests/utils/test_hash_map.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/railguard/rendering/renderer.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/railguard/core/renderer.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/include/railguard/core/renderer.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/railguard/core/renderer.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/include/railguard/core/window.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/railguard/core/window.h" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/include/railguard/utils/arrays.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/railguard/utils/arrays.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/premake5.lua" beforeDir="false" afterPath="$PROJECT_DIR$/premake5.lua" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/rendering/device/renderer_vulkan.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/renderer/renderer_vulkan.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/rendering/window/window_sdl2.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/window/window_sdl2.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/include/railguard/utils/event_sender.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/railguard/utils/event_sender.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/include/railguard/utils/maps.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/railguard/utils/maps.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/engine.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/engine.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/renderer/renderer_vulkan.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/renderer/renderer_vulkan.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/window/window_sdl2.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/window/window_sdl2.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/utils/arrays.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/arrays.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/utils/event_sender.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/event_sender.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/utils/maps.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/maps.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/utils/test_hash_map.c" beforeDir="false" afterPath="$PROJECT_DIR$/tests/utils/test_hash_map.c" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -129,7 +123,12 @@
       <recent name="E:\Documents\02_PROGRA\Graphics_Programming\pure_railguard" />
     </key>
   </component>
-  <component name="RunManager" selected="Makefile Application.test_hash_map">
+  <component name="RunManager" selected="Makefile Application.main">
+    <configuration default="true" type="CLionExternalRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true">
+      <method v="2">
+        <option name="CLION.EXTERNAL.BUILD" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="all" type="CLionNativeAppRunConfigurationType" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="pure_railguard" TARGET_NAME="all" CONFIG_NAME="all" version="1">
       <method v="2">
         <option name="CLION.COMPOUND.BUILD" enabled="true" />
@@ -201,7 +200,7 @@
       <workItem from="1631044659589" duration="1286000" />
       <workItem from="1631046861966" duration="6635000" />
       <workItem from="1631200156990" duration="14327000" />
-      <workItem from="1631258750389" duration="5338000" />
+      <workItem from="1631258750389" duration="9246000" />
     </task>
     <servers />
   </component>

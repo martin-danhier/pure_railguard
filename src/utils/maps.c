@@ -117,11 +117,18 @@ bool rg_hash_map_expand(rg_hash_map *hash_map)
 rg_hash_map *rg_create_hash_map(void)
 {
     rg_hash_map *map = malloc(sizeof(rg_hash_map));
+    if (map == NULL) {
+        return NULL;
+    }
 
     // Allocate array
     map->capacity = 1;
     map->count    = 0;
     map->data     = calloc(map->capacity, sizeof(rg_hash_map_entry));
+    if (map->data == NULL ) {
+        free(map);
+        return NULL;
+    }
 
     return map;
 }
@@ -210,4 +217,36 @@ bool rg_hash_map_next(rg_hash_map_it *it)
 
     // When the loop is finished, there are no more elements in the map
     return false;
+}
+
+void rg_hash_map_erase(rg_hash_map *hash_map, const char *key)
+{
+    // Compute the index of the key in the array
+    size_t index = (size_t) (hash_key(key) & ((uint64_t) hash_map->capacity - 1));
+
+    // Search for the slot near the pointed index, until an empty slot is found.
+    while (hash_map->data[index].key != NULL)
+    {
+        // We found the slot to remove if the key is the same
+        if (strcmp(key, hash_map->data[index].key) == 0)
+        {
+            // Set key and value to null
+            hash_map->data[index].value = NULL;
+            hash_map->data[index].key = NULL;
+            hash_map->count -= 1;
+            return;
+        }
+
+        // Else, increment to find the next empty slot
+        index++;
+        // Wrap around to stay inside the array
+        if (index >= hash_map->capacity)
+        {
+            index = 0;
+        }
+    }
+
+    // If we reach this point, then the key wasn't found
+    // Technically, the contract is filled since we needed to remove it
+    // Thus, we always succeed, and we don't need to return an error.
 }

@@ -3,23 +3,28 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 // --=== Arrays ===--
 
 rg_array rg_create_array(size_t size, size_t element_size)
 {
-    return (rg_array) {
+    rg_array array = {
         .count = size,
         .data  = malloc(size * element_size),
     };
+    assert(array.data != NULL);
+    return array;
 }
 
 rg_array rg_create_array_zeroed(size_t size, size_t element_size)
 {
-    return (rg_array) {
+    rg_array array = {
         .count = size,
         .data  = calloc(size, element_size),
     };
+    assert(array.data != NULL);
+    return array;
 }
 
 void rg_destroy_array(rg_array *array)

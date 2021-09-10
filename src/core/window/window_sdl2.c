@@ -9,8 +9,18 @@
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #ifdef RENDERER_VULKAN
+#include <railguard/utils/event_sender.h>
+
 #include <SDL2/SDL_vulkan.h>
 #endif
+
+// --==== TYPES ====--
+typedef struct rg_window
+{
+    SDL_Window      *sdl_window;
+    rg_extent_2d     extent;
+    rg_event_sender *resize_event;
+} rg_window;
 
 // --==== UTILS FUNCTIONS ====--
 
@@ -40,16 +50,17 @@ void rg_stop_window_manager()
 
 // --==== WINDOW ====--
 
-typedef struct rg_window
-{
-    SDL_Window *sdl_window;
-    rg_extent_2d extent;
-} rg_window;
-
 rg_window *rg_create_window(rg_extent_2d extent, const char *title)
 {
     // Initialize window
     rg_window *window = malloc(sizeof(rg_window));
+    if (window == NULL)
+    {
+        return NULL;
+    }
+
+    // Init event senders
+    window->resize_event = rg_create_event_sender();
 
     // Save other info
     window->extent = extent;
@@ -69,6 +80,20 @@ rg_window *rg_create_window(rg_extent_2d extent, const char *title)
                                           (int32_t) extent.height,
                                           windowFlags);
 
+    // If one of the created fields is NULL, free everything and return NULL
+    if (window->resize_event == NULL || window->sdl_window == NULL)
+    {
+        if (window->resize_event)
+            rg_destroy_event_sender(&window->resize_event);
+        if (window->sdl_window)
+            SDL_DestroyWindow(window->sdl_window);
+        free(window);
+        return NULL;
+    }
+
+    // Everything is valid, apply more settings to the window
+    SDL_SetWindowResizable(window->sdl_window, SDL_TRUE);
+
     return window;
 }
 
@@ -76,6 +101,9 @@ void rg_destroy_window(rg_window **window)
 {
     // Destroy SDL Window
     SDL_DestroyWindow((*window)->sdl_window);
+
+    // Destroy event senders
+    rg_destroy_event_sender(&(*window)->resize_event);
 
     // Free the renderer
     free(*window);
@@ -107,14 +135,41 @@ bool rg_window_handle_events(rg_window *window)
     // Handle all events in a queue
     while (SDL_PollEvent(&event) != 0)
     {
+        // Window event
+        if (event.type == SDL_WINDOWEVENT) {
+
+            // Window resized
+            if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+                // Send a resize event
+                rg_window_resize_event_data event_data = {
+                    .new_extent = {
+                        .width = event.window.data1,
+                        .height = event.window.data2,
+                    }
+                };
+                rg_event_sender_send_event(window->resize_event, &event_data);
+            }
+
+        }
         // Quit
-        if (event.type == SDL_QUIT)
+        else if (event.type == SDL_QUIT)
         {
             should_quit = true;
         }
     }
 
     return should_quit;
+}
+
+// Resize event
+
+bool rg_window_resize_event_subscribe(rg_window *window, const char *handler_name, rg_event_handler handler)
+{
+    return rg_event_sender_register_listener(window->resize_event, handler_name, handler);
+}
+
+void rg_window_resize_event_unsubscribe(rg_window *window, const char* handler_name) {
+    rg_event_sender_unregister_listener(window->resize_event, handler_name);
 }
 
 #ifdef RENDERER_VULKAN

@@ -11,6 +11,12 @@ typedef struct rg_extent_2d
 } rg_extent_2d;
 
 typedef struct rg_window rg_window;
+typedef void (*rg_event_handler)(void *data);
+
+// Event data
+typedef struct rg_window_resize_event_data {
+    rg_extent_2d new_extent;
+} rg_window_resize_event_data;
 
 // Also forward declare to avoid includes
 typedef struct rg_array rg_array;
@@ -35,6 +41,10 @@ void       rg_destroy_window(rg_window **window);
 double rg_window_compute_delta_time(rg_window *window, uint64_t *current_frame_time);
 
 bool rg_window_handle_events(rg_window *window);
+
+// Events
+bool rg_window_resize_event_subscribe(rg_window *window, const char* handler_name, rg_event_handler handler);
+void rg_window_resize_event_unsubscribe(rg_window *window, const char* handler_name);
 
 #ifdef RENDERER_VULKAN
 rg_array rg_window_get_required_vulkan_extensions(rg_window *window, unsigned int extra_array_size);

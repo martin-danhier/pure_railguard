@@ -2,6 +2,8 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <railguard/core/window.h>
+
 
 // --=== Types ===--
 
@@ -21,6 +23,7 @@ typedef struct rg_array
      */
     void *data;
 } rg_array;
+
 
 /**
  * Resizable dynamically allocated array.

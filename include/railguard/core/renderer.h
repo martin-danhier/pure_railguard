@@ -60,4 +60,4 @@ rg_renderer_create_swapchain(rg_renderer *renderer, uint32_t swapchain_index, rg
 
 void rg_renderer_recreate_swapchain(rg_renderer *renderer, uint32_t swapchain_index);
 
-void rg_destroy_renderer(rg_renderer **renderer);
+void rg_destroy_renderer(rg_renderer **renderer, rg_window *window);

@@ -118,6 +118,18 @@ int main(void)
     assert(new_value_get != NULL);
     assert(*new_value_get == new_value);
 
+    // Test the erasing of keys
+
+    // Initial state: the key exists, and we have some number of elements in the map
+    assert(rg_hash_map_get(map, "key5") != NULL);
+    size_t old_count = rg_hash_map_count(map);
+    // Do the erasing
+    rg_hash_map_erase(map, "key5");
+    // Final state: the key does not exist anymore, and the number of elements has decreased by one
+    size_t new_count = rg_hash_map_count(map);
+    assert(new_count == old_count - 1);
+    assert(rg_hash_map_get(map, "key5") == NULL);
+
     rg_destroy_hash_map(&map);
     assert (map == NULL);
 
