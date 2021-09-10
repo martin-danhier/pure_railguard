@@ -1,8 +1,8 @@
 // Place the contents of the file inside a guard, so that only one implementation is generated
 #ifdef RENDERER_VULKAN
 
-#include "railguard/rendering/renderer.h"
-#include <railguard/rendering/window.h>
+#include "railguard/core/renderer.h"
+#include <railguard/core/window.h>
 #include <railguard/utils/arrays.h>
 
 #include <stdbool.h>
@@ -91,7 +91,7 @@ typedef struct rg_renderer {
     VkDebugUtilsMessengerEXT debug_messenger;
 #endif
     /**
-     * @brief Fixed-size array containing the swapchains.
+     * @brief Fixed-count array containing the swapchains.
      * We place them in a array to be able to efficiently iterate through them. And because their number won't change, we can safely
      * send pointers to individual swapchains around.
      */
@@ -556,7 +556,7 @@ void destroy_image(VmaAllocator allocator, VkDevice device, rg_allocated_image *
 void
 rg_renderer_create_swapchain(rg_renderer *renderer, uint32_t swapchain_index, rg_surface surface, rg_extent_2d extent) {
     // Prevent access to the positions that are outside the swapchain array
-    rg_check(swapchain_index < renderer->swapchains.size, "Swapchain index out of range.");
+    rg_check(swapchain_index < renderer->swapchains.count, "Swapchain index out of range.");
 
     // Get the swapchain in the renderer
     rg_swapchain *swapchain = renderer->swapchains.data + (swapchain_index * sizeof(rg_swapchain));
@@ -778,7 +778,7 @@ rg_renderer_create_swapchain(rg_renderer *renderer, uint32_t swapchain_index, rg
 
 void rg_renderer_recreate_swapchain(rg_renderer *renderer, uint32_t swapchain_index) {
     // Prevent access to the positions that are outside the swapchain array
-    rg_check(swapchain_index < renderer->swapchains.size, "Swapchain index out of range.");
+    rg_check(swapchain_index < renderer->swapchains.count, "Swapchain index out of range.");
 }
 
 void rg_destroy_swapchain(const rg_renderer *renderer, rg_swapchain *swapchain) {
@@ -835,12 +835,12 @@ rg_create_renderer(rg_window *window, const char *application_name, rg_version a
     rg_array required_extensions = rg_window_get_required_vulkan_extensions(window, extra_extension_count);
 
     // Add other extensions in the extra slots
-    uint32_t extra_ext_index = required_extensions.size - extra_extension_count;
+    uint32_t extra_ext_index = required_extensions.count - extra_extension_count;
 #ifdef USE_VK_VALIDATION_LAYERS
     ((char **) required_extensions.data)[extra_ext_index++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
 #endif
 
-    rg_check(check_instance_extension_support(required_extensions.data, required_extensions.size),
+    rg_check(check_instance_extension_support(required_extensions.data, required_extensions.count),
              "Not all required Vulkan extensions are supported.");
 
     // Get the validations layers if needed
@@ -876,7 +876,7 @@ rg_create_renderer(rg_window *window, const char *application_name, rg_version a
             .pApplicationInfo = &applicationInfo,
 
             // Extensions
-            .enabledExtensionCount   = required_extensions.size,
+            .enabledExtensionCount   = required_extensions.count,
             .ppEnabledExtensionNames = required_extensions.data,
 
             // Validation layers
@@ -1047,7 +1047,7 @@ rg_create_renderer(rg_window *window, const char *application_name, rg_version a
 
 void rg_destroy_renderer(rg_renderer **renderer) {
     // Destroy swapchains
-    for (uint32_t i = 0; i < (*renderer)->swapchains.size; i++) {
+    for (uint32_t i = 0; i < (*renderer)->swapchains.count; i++) {
         rg_swapchain *swapchain = (*renderer)->swapchains.data + (i * sizeof(rg_swapchain));
         if (swapchain->enabled) {
             rg_destroy_swapchain(*renderer, swapchain);

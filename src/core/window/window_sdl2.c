@@ -3,7 +3,7 @@
 // We define this constant to let it know
 #define SDL_MAIN_HANDLED
 
-#include "railguard/rendering/window.h"
+#include "railguard/core/window.h"
 #include <railguard/utils/arrays.h>
 
 #include <SDL2/SDL.h>
@@ -83,6 +83,38 @@ void rg_destroy_window(rg_window **window)
     // Since we took a double pointer in parameter, we can also set it to null
     // Thus, the user doesn't have to do it themselves
     *window = NULL;
+}
+
+double rg_window_compute_delta_time(rg_window *window, uint64_t *current_frame_time)
+{
+    // Update frame time counter
+    uint64_t previous_frame_time = *current_frame_time;
+    *current_frame_time          = SDL_GetPerformanceCounter();
+
+    // Delta time = counter since last frame (tics) / counter frequency (tics / second)
+    //            = tics / (tics / second)
+    //            = tics * second / tics
+    //            = second
+    // -> time in second elapsed since last frame
+    return ((double) (*current_frame_time - previous_frame_time)) / ((double) SDL_GetPerformanceFrequency());
+}
+
+bool rg_window_handle_events(rg_window *window)
+{
+    SDL_Event event;
+    bool      should_quit = false;
+
+    // Handle all events in a queue
+    while (SDL_PollEvent(&event) != 0)
+    {
+        // Quit
+        if (event.type == SDL_QUIT)
+        {
+            should_quit = true;
+        }
+    }
+
+    return should_quit;
 }
 
 #ifdef RENDERER_VULKAN

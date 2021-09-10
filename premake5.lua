@@ -229,11 +229,11 @@ project "vma"
        links "dl"
    filter{}
 
---==== Main Project ====--
+--==== Railguard lib ====--
 
 project "railguard"
    -- Global project settings
-   kind "ConsoleApp"
+   kind "StaticLib"
    language "C++"
    cdialect "C11"
    dependson {"shaders", "volk", "vma"}
@@ -245,6 +245,7 @@ project "railguard"
 
    -- Add source files
    files "src/**.c"
+   removefiles "src/main.c"
 
    -- Add header dependencies
    includedirs {
@@ -270,3 +271,41 @@ project "railguard"
    filter "platforms:Linux"
        links "dl"
    filter{}
+
+--==== Main  ====--
+
+-- Place the lines in common between each test/main target in a function
+function common_requirements()
+    kind "ConsoleApp"
+    dependson {"railguard", "shaders", "volk", "vma"}
+    language "C++"
+    cdialect "C11"
+    targetdir "bin/%{cfg.buildcfg}"
+
+    -- Add lib dependencies
+    libdirs {
+       VULKAN_LIB_DIR,
+       SDL_LIB_DIR
+    }
+
+    includedirs "include"
+
+    links {"railguard", "SDL2", "volk", "vma"}
+
+    -- Platform specific settings
+    filter "platforms:Win64"
+        links "SDL2main"
+    filter "platforms:Linux"
+        links "dl"
+    filter{}
+end
+
+-- Main target
+project "main"
+    common_requirements()
+    files "src/main.c"
+
+-- Hash map test
+project "test_hash_map"
+    common_requirements()
+    files "tests/utils/test_hash_map.c"

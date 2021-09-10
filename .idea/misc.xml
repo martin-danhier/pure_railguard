@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CidrRootsConfiguration">
+    <libraryRoots>
+      <file path="$PROJECT_DIR$/external" />
+    </libraryRoots>
+  </component>
+  <component name="ExternalStorageConfigurationManager" enabled="true" />
+  <component name="MakefileSettings">
+    <option name="linkedExternalProjectsSettings">
+      <MakefileProjectSettings>
+        <option name="buildOptions" value="config=debug_win64" />
+        <option name="externalProjectPath" value="$PROJECT_DIR$/build" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$/build" />
+          </set>
+        </option>
+        <option name="preConfigureCommands" value="cd .. &amp;&amp; premake5 gmake" />
+        <option name="version" value="2" />
+      </MakefileProjectSettings>
+    </option>
+  </component>
+  <component name="MakefileWorkspace" PROJECT_DIR="$PROJECT_DIR$/build">
+    <contentRoot DIR="$PROJECT_DIR$" />
+  </component>
+</project>

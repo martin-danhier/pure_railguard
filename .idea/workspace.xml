@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="CMakeRunConfigurationManager" shouldGenerate="true" shouldDeleteObsolete="true">
+    <generated>
+      <config projectName="pure_railguard" targetName="main" />
+      <config projectName="pure_railguard" targetName="vma" />
+      <config projectName="pure_railguard" targetName="shaders" />
+      <config projectName="pure_railguard" targetName="railguard" />
+      <config projectName="pure_railguard" targetName="volk" />
+      <config projectName="pure_railguard" targetName="test_hash_map" />
+      <config projectName="pure_railguard" targetName="all" />
+      <config projectName="pure_railguard" targetName="help" />
+    </generated>
+  </component>
+  <component name="CMakeSettings">
+    <configurations>
+      <configuration PROFILE_NAME="Debug" ENABLED="true" CONFIG_NAME="Debug" />
+    </configurations>
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="38b0f475-f378-4382-948a-7f7ab04cde54" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/deployment.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/include/railguard/core/engine.h" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/include/railguard/core/window.h" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/include/railguard/utils/event_sender.h" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/include/railguard/utils/maps.h" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/core/engine.c" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/utils/event_sender.c" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/utils/maps.c" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/utils/test_hash_map.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/include/railguard/rendering/renderer.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/railguard/core/renderer.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/include/railguard/utils/arrays.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/railguard/utils/arrays.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/premake5.lua" beforeDir="false" afterPath="$PROJECT_DIR$/premake5.lua" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/rendering/device/renderer_vulkan.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/renderer/renderer_vulkan.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/rendering/window/window_sdl2.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/window/window_sdl2.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/utils/arrays.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/arrays.c" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ExternalProjectsData">
+    <projectState path="$PROJECT_DIR$/build">
+      <ProjectState />
+    </projectState>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitSEFilterConfiguration">
+    <file-type-list>
+      <filtered-out-file-type name="LOCAL_BRANCH" />
+      <filtered-out-file-type name="REMOTE_BRANCH" />
+      <filtered-out-file-type name="TAG" />
+      <filtered-out-file-type name="COMMIT_BY_MESSAGE" />
+    </file-type-list>
+  </component>
+  <component name="MacroExpansionManager">
+    <option name="directoryName" value="0a8j9m29" />
+  </component>
+  <component name="Make.Settings">
+    <option name="path" value="make" />
+  </component>
+  <component name="MakefileLocalSettings">
+    <option name="availableProjects">
+      <map>
+        <entry>
+          <key>
+            <ExternalProjectPojo>
+              <option name="name" value="pure_railguard" />
+              <option name="path" value="$PROJECT_DIR$/build" />
+            </ExternalProjectPojo>
+          </key>
+          <value>
+            <list>
+              <ExternalProjectPojo>
+                <option name="name" value="pure_railguard" />
+                <option name="path" value="$PROJECT_DIR$/build" />
+              </ExternalProjectPojo>
+            </list>
+          </value>
+        </entry>
+      </map>
+    </option>
+    <option name="projectSyncType">
+      <map>
+        <entry key="$PROJECT_DIR$/build" value="RE_IMPORT" />
+      </map>
+    </option>
+  </component>
+  <component name="NamedScopeManager">
+    <scope name="Source" pattern="file[pure_railguard]:src//*||file[pure_railguard]:include//*||file[pure_railguard]:tests//*" />
+  </component>
+  <component name="OCResolveContextSettings">
+    <option name="configuration" value="$PROJECT_DIR$/src/rendering/window/window_sdl2.c" />
+  </component>
+  <component name="ProjectId" id="1xdSfYBAjDsFJ1sOuxo1AUVKaQm" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true">
+    <ConfirmationsSetting value="2" id="Add" />
+  </component>
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+    <option name="sortByType" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="NEW_TOOLWINDOW_STRIPE_DEFAULTS" value="true" />
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
+    <property name="RunOnceActivity.cidr.known.project.marker" value="true" />
+    <property name="WebServerToolWindowFactoryState" value="true" />
+    <property name="cf.advertisement.text.overridden" value="true" />
+    <property name="cf.first.check.clang-format" value="false" />
+    <property name="cidr.known.project.marker" value="true" />
+    <property name="full.screen.before.presentation.mode" value="false" />
+    <property name="nodejs_package_manager_path" value="npm" />
+    <property name="settings.editor.selected.configurable" value="project.scopes" />
+  </component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="E:\Documents\02_PROGRA\Graphics_Programming\pure_railguard" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Makefile Application.test_hash_map">
+    <configuration name="all" type="CLionNativeAppRunConfigurationType" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="pure_railguard" TARGET_NAME="all" CONFIG_NAME="all" version="1">
+      <method v="2">
+        <option name="CLION.COMPOUND.BUILD" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="help" type="CLionNativeAppRunConfigurationType" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="pure_railguard" TARGET_NAME="help" CONFIG_NAME="help" version="1">
+      <method v="2">
+        <option name="CLION.COMPOUND.BUILD" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="main" type="CLionNativeAppRunConfigurationType" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="pure_railguard" TARGET_NAME="main" CONFIG_NAME="main" version="1" RUN_PATH="bin/Debug/main.exe">
+      <method v="2">
+        <option name="CLION.COMPOUND.BUILD" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="railguard" type="CLionNativeAppRunConfigurationType" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="pure_railguard" TARGET_NAME="railguard" CONFIG_NAME="railguard" version="1" RUN_PATH="./bin/Debug/railguard.exe">
+      <method v="2">
+        <option name="CLION.COMPOUND.BUILD" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="shaders" type="CLionNativeAppRunConfigurationType" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="pure_railguard" TARGET_NAME="shaders" CONFIG_NAME="shaders" version="1">
+      <method v="2">
+        <option name="CLION.COMPOUND.BUILD" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="test_hash_map" type="CLionNativeAppRunConfigurationType" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="pure_railguard" TARGET_NAME="test_hash_map" CONFIG_NAME="test_hash_map" version="1" RUN_PATH="bin/Debug/test_hash_map.exe">
+      <method v="2">
+        <option name="CLION.COMPOUND.BUILD" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="vma" type="CLionNativeAppRunConfigurationType" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="pure_railguard" TARGET_NAME="vma" CONFIG_NAME="vma" version="1">
+      <method v="2">
+        <option name="CLION.COMPOUND.BUILD" enabled="true" />
+      </method>
+    </configuration>
+    <configuration name="volk" type="CLionNativeAppRunConfigurationType" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="pure_railguard" TARGET_NAME="volk" CONFIG_NAME="volk" version="1">
+      <method v="2">
+        <option name="CLION.COMPOUND.BUILD" enabled="true" />
+      </method>
+    </configuration>
+    <configuration default="true" type="GradleAppRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true">
+      <method v="2">
+        <option name="com.jetbrains.cidr.cpp.gradle.execution.GradleNativeBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+      </method>
+    </configuration>
+    <list>
+      <item itemvalue="Makefile Application.all" />
+      <item itemvalue="Makefile Application.help" />
+      <item itemvalue="Makefile Application.main" />
+      <item itemvalue="Makefile Application.railguard" />
+      <item itemvalue="Makefile Application.shaders" />
+      <item itemvalue="Makefile Application.test_hash_map" />
+      <item itemvalue="Makefile Application.vma" />
+      <item itemvalue="Makefile Application.volk" />
+    </list>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="38b0f475-f378-4382-948a-7f7ab04cde54" name="Changes" comment="" />
+      <created>1630683577239</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1630683577239</updated>
+      <workItem from="1630683579957" duration="1037000" />
+      <workItem from="1630783105917" duration="603000" />
+      <workItem from="1630785952059" duration="2000" />
+      <workItem from="1631026055724" duration="1489000" />
+      <workItem from="1631044659589" duration="1286000" />
+      <workItem from="1631046861966" duration="6635000" />
+      <workItem from="1631200156990" duration="14327000" />
+      <workItem from="1631258750389" duration="5338000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+    <option name="oldMeFiltersMigrated" value="true" />
+  </component>
+  <component name="XDebuggerManager">
+    <watches-manager>
+      <configuration name="CLionNativeAppRunConfigurationType">
+        <watch expression="*(rg_hash_map_entry (*)[32]) hash_map-&gt;data" language="ObjectiveC" />
+      </configuration>
+    </watches-manager>
+  </component>
+</project>
