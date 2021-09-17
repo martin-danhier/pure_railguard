@@ -37,13 +37,18 @@ void rg_destroy_array(rg_array *array)
 
 // --=== Vectors ===--
 
-void rg_create_vector(size_t initial_capacity, size_t element_size, rg_vector *dest_vector)
+bool rg_create_vector(size_t initial_capacity, size_t element_size, rg_vector *dest_vector)
 {
     // Init default fields
     dest_vector->capacity     = initial_capacity;
     dest_vector->element_size = element_size;
     dest_vector->count        = 0;
     dest_vector->data         = malloc(element_size * initial_capacity);
+
+    if (dest_vector->data == NULL) {
+        return false;
+    }
+    return true;
 }
 
 void rg_destroy_vector(rg_vector *vector)

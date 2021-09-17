@@ -1,8 +1,14 @@
 #include "railguard/utils/maps.h"
 
+#include <railguard/utils/arrays.h>
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+// --=== Hash Maps ===--
+
+// region Hash Map
 
 // --=== Constants ===--
 
@@ -13,8 +19,8 @@
 
 typedef struct rg_hash_map_entry
 {
-    const char *key;
-    void       *value;
+    const char         *key;
+    rg_hash_map_value_t value;
 } rg_hash_map_entry;
 
 typedef struct rg_hash_map
@@ -38,8 +44,8 @@ uint64_t hash_key(const char *key)
     return hash;
 }
 
-bool set_entry(rg_hash_map_entry* entries, size_t capacity, const char *key, void *value, size_t *count) {
-
+bool rg_hash_map_set_entry(rg_hash_map_entry *entries, size_t capacity, const char *key, rg_hash_map_value_t value, size_t *count)
+{
     // Compute the index of the key in the array
     size_t index = (size_t) (hash_key(key) & ((uint64_t) capacity - 1));
 
@@ -98,17 +104,28 @@ bool rg_hash_map_expand(rg_hash_map *hash_map)
     for (size_t i = 0; i < hash_map->capacity; i++) {
         rg_hash_map_entry entry = hash_map->data[i];
         if (entry.key != NULL) {
-            set_entry(new_entries, new_capacity, entry.key, entry.value, NULL);
+            rg_hash_map_set_entry(new_entries, new_capacity, entry.key, entry.value, NULL);
         }
     }
 
     free(hash_map->data);
-    hash_map->data = new_entries;
+    hash_map->data     = new_entries;
     hash_map->capacity = new_capacity;
     return true;
 }
 
-
+bool rg_init_hash_map(rg_hash_map *hash_map)
+{
+    // Allocate array
+    hash_map->capacity = 1;
+    hash_map->count    = 0;
+    hash_map->data     = calloc(hash_map->capacity, sizeof(rg_hash_map_entry));
+    if (hash_map->data == NULL)
+    {
+        return false;
+    }
+    return true;
+}
 
 // --=== Hash map ===--
 
@@ -117,15 +134,13 @@ bool rg_hash_map_expand(rg_hash_map *hash_map)
 rg_hash_map *rg_create_hash_map(void)
 {
     rg_hash_map *map = malloc(sizeof(rg_hash_map));
-    if (map == NULL) {
+    if (map == NULL)
+    {
         return NULL;
     }
 
-    // Allocate array
-    map->capacity = 1;
-    map->count    = 0;
-    map->data     = calloc(map->capacity, sizeof(rg_hash_map_entry));
-    if (map->data == NULL ) {
+    if (!rg_init_hash_map(map))
+    {
         free(map);
         return NULL;
     }
@@ -143,7 +158,7 @@ void rg_destroy_hash_map(rg_hash_map **p_hash_map)
     *p_hash_map = NULL;
 }
 
-void *rg_hash_map_get(rg_hash_map *hash_map, const char *key)
+rg_hash_map_get_result rg_hash_map_get(rg_hash_map *hash_map, const char *key)
 {
     // Compute the index of the key in the array
     size_t index = (size_t) (hash_key(key) & ((uint64_t) hash_map->capacity - 1));
@@ -154,7 +169,10 @@ void *rg_hash_map_get(rg_hash_map *hash_map, const char *key)
         // If the key is the same, we found the good slot !
         if (strcmp(key, hash_map->data[index].key) == 0)
         {
-            return hash_map->data[index].value;
+            return (rg_hash_map_get_result) {
+                .value  = hash_map->data[index].value,
+                .exists = true,
+            };
         }
 
         index++;
@@ -164,25 +182,23 @@ void *rg_hash_map_get(rg_hash_map *hash_map, const char *key)
             index = 0;
         }
     }
-    return NULL;
+    return (rg_hash_map_get_result) {
+        .exists = false,
+    };
 }
 
-bool rg_hash_map_set(rg_hash_map *hash_map, const char *key, void *value)
+bool rg_hash_map_set(rg_hash_map *hash_map, const char *key, rg_hash_map_value_t value)
 {
-    // The value should not be NULL
-    if (value == NULL)
-    {
-        return false;
-    }
-
     // Expand the capacity of the array if it is more than half full
-    if (hash_map->count >= hash_map->capacity / 2) {
-        if (!rg_hash_map_expand(hash_map)) {
+    if (hash_map->count >= hash_map->capacity / 2)
+    {
+        if (!rg_hash_map_expand(hash_map))
+        {
             return false;
         }
     }
 
-    return set_entry(hash_map->data, hash_map->capacity, key, value, &hash_map->count);
+    return rg_hash_map_set_entry(hash_map->data, hash_map->capacity, key, value, &hash_map->count);
 }
 
 size_t rg_hash_map_count(rg_hash_map *hash_map)
@@ -231,8 +247,8 @@ void rg_hash_map_erase(rg_hash_map *hash_map, const char *key)
         if (strcmp(key, hash_map->data[index].key) == 0)
         {
             // Set key and value to null
-            hash_map->data[index].value = NULL;
-            hash_map->data[index].key = NULL;
+            hash_map->data[index].value.as_ptr = NULL;
+            hash_map->data[index].key          = NULL;
             hash_map->count -= 1;
             return;
         }
@@ -250,3 +266,73 @@ void rg_hash_map_erase(rg_hash_map *hash_map, const char *key)
     // Technically, the contract is filled since we needed to remove it
     // Thus, we always succeed, and we don't need to return an error.
 }
+// endregion
+
+// --=== Struct Maps ===--
+
+// region Struct Map
+
+// --=== Types ===--
+
+typedef struct rg_struct_map
+{
+    rg_hash_map hash_map; // We take advantage of the fact that we are in the same c file to avoid a pointer here
+    rg_vector   storage;
+
+} rg_struct_map;
+
+// --=== Functions ===--
+
+rg_struct_map *rg_create_struct_map(size_t value_size)
+{
+    rg_struct_map *map = malloc(sizeof(rg_struct_map));
+    if (map == NULL)
+    {
+        return NULL;
+    }
+
+    // Init the hash map
+    if (!rg_init_hash_map(&map->hash_map))
+    {
+        free(map);
+        return NULL;
+    }
+
+    // Init the vector
+    if (!rg_create_vector(2, value_size, &map->storage))
+    {
+        rg_hash_map *hash_map = &map->hash_map;
+        rg_destroy_hash_map(&hash_map);
+        free(map);
+        return NULL;
+    }
+
+    return map;
+}
+
+void rg_destroy_struct_map(rg_struct_map **p_struct_map)
+{
+    // Destroy the vector
+    rg_destroy_vector(&(*p_struct_map)->storage);
+
+    // Destroy the hash map
+    rg_hash_map *hash_map = &(*p_struct_map)->hash_map;
+    rg_destroy_hash_map(&hash_map);
+
+    // Destroy the struct map
+    free(*p_struct_map);
+    *p_struct_map = NULL;
+}
+
+size_t rg_struct_map_count(rg_struct_map *struct_map)
+{
+    // The keys are still managed by the hash map
+    // So the count is fetched from it
+    return struct_map->hash_map.count;
+}
+
+rg_hash_map_get_result rg_struct_map_get(rg_struct_map *struct_map, const char *key) {
+
+}
+
+// endregion

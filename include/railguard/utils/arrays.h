@@ -75,7 +75,7 @@ void     rg_destroy_array(rg_array *array);
  * @param element_size
  * @param dest_vector is a pointer to the vector that will be allocated. It must be an unallocated vector.
  */
-void rg_create_vector(size_t initial_capacity, size_t element_size, rg_vector *dest_vector);
+bool rg_create_vector(size_t initial_capacity, size_t element_size, rg_vector *dest_vector);
 /**
  * Cleans up the given vector. It will become unallocated and unusable without a new call to rg_create_vector.
  * @param vector is the vector that will be deleted.

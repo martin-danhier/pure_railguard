@@ -59,16 +59,16 @@ int main(void)
     // Populate the map
     for (int i = 0; i < TEST_VALUES_COUNT; i++)
     {
-        bool success = rg_hash_map_set(map, keys[i], &values[i]);
+        bool success = rg_hash_map_set(map, keys[i], (rg_hash_map_value_t) (void *) &values[i]);
         assert(success);
     }
 
     // Check that all values are in the map
     for (int i = 0; i < TEST_VALUES_COUNT; i++)
     {
-        int *value = rg_hash_map_get(map, keys[i]);
-        assert(value != NULL);
-        assert(*value == values[i]);
+        rg_hash_map_get_result result = rg_hash_map_get(map, keys[i]);
+        assert(result.exists);
+        assert(*(int *) result.value.as_ptr == values[i]);
     }
 
     // Iterator
@@ -83,9 +83,10 @@ int main(void)
         // Thus, we need to find the key each time manually
         bool found = false;
         for (int i = 0; i < TEST_VALUES_COUNT && !found; i++) {
-            if (strcmp(it.key, keys[i]) == 0) {
+            if (strcmp(it.key, keys[i]) == 0)
+            {
                 // Found the key, the value should match
-                assert(*(int*) it.value == values[i]);
+                assert(*(int *) it.value.as_ptr == values[i]);
                 found = true;
 
                 // The key should not already have been found
@@ -99,36 +100,36 @@ int main(void)
     assert(values_in_iterator_count == TEST_VALUES_COUNT);
 
     // Check that a get with a wrong key returns NULL
-    assert(rg_hash_map_get(map, "nonexisting") == NULL);
-    assert(rg_hash_map_get(map, "nonsense") == NULL);
-    assert(rg_hash_map_get(map, "xyz") == NULL);
-    assert(rg_hash_map_get(map, "74dfg531dfg563dfg321dfg354df32dfg32dfg") == NULL);
-    assert(rg_hash_map_get(map, "") == NULL);
+    assert(!rg_hash_map_get(map, "nonexisting").exists);
+    assert(!rg_hash_map_get(map, "nonsense").exists);
+    assert(!rg_hash_map_get(map, "xyz").exists);
+    assert(!rg_hash_map_get(map, "74dfg531dfg563dfg321dfg354df32dfg32dfg").exists);
+    assert(!rg_hash_map_get(map, "").exists);
 
     // Set with empty key should work
-    assert(rg_hash_map_set(map, "", &values[0]) == true);
-    int *empty_key_value = rg_hash_map_get(map, "");
-    assert(empty_key_value != NULL);
-    assert(*empty_key_value == values[0]);
+    assert(rg_hash_map_set(map, "", (rg_hash_map_value_t) (size_t) 75) == true);
+    rg_hash_map_get_result empty_key_value_result = rg_hash_map_get(map, "");
+    assert(empty_key_value_result.exists);
+    assert(empty_key_value_result.value.as_num == 75);
 
     // Test the editing of existing keys
     int new_value = 789456123;
-    assert(rg_hash_map_set(map, "key12", &new_value));
-    int *new_value_get = rg_hash_map_get(map, "key12");
-    assert(new_value_get != NULL);
-    assert(*new_value_get == new_value);
+    assert(rg_hash_map_set(map, "key12", (rg_hash_map_value_t) (void *) &new_value));
+    rg_hash_map_get_result new_value_get_result = rg_hash_map_get(map, "key12");
+    assert(new_value_get_result.exists);
+    assert(*(int *) new_value_get_result.value.as_ptr == new_value);
 
     // Test the erasing of keys
 
     // Initial state: the key exists, and we have some number of elements in the map
-    assert(rg_hash_map_get(map, "key5") != NULL);
+    assert(rg_hash_map_get(map, "key5").exists);
     size_t old_count = rg_hash_map_count(map);
     // Do the erasing
     rg_hash_map_erase(map, "key5");
     // Final state: the key does not exist anymore, and the number of elements has decreased by one
     size_t new_count = rg_hash_map_count(map);
     assert(new_count == old_count - 1);
-    assert(rg_hash_map_get(map, "key5") == NULL);
+    assert(!rg_hash_map_get(map, "key5").exists);
 
     rg_destroy_hash_map(&map);
     assert (map == NULL);

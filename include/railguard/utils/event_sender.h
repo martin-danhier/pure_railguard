@@ -4,7 +4,11 @@
 
 // --=== Types ===--
 
-typedef void (*rg_event_handler)(void *data);
+typedef struct rg_event_handler {
+    void (*pfn_handler)(void *event_data, void *user_data);
+    void *user_data;
+} rg_event_handler;
+
 typedef struct rg_event_sender rg_event_sender;
 
 // --=== Event Sender ===--

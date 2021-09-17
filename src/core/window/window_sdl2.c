@@ -91,7 +91,7 @@ rg_window *rg_create_window(rg_extent_2d extent, const char *title)
         return NULL;
     }
 
-    // Everything is valid, apply more settings to the window
+    // Everything is exists, apply more settings to the window
     SDL_SetWindowResizable(window->sdl_window, SDL_TRUE);
 
     return window;

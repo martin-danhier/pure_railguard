@@ -25,7 +25,7 @@
 /// \brief Number of frames that can be rendered at the same time. Set to 2 for double buffering, or 3 for triple buffering.
 #define NB_OVERLAPPING_FRAMES 3
 #define VULKAN_API_VERSION    VK_API_VERSION_1_1
-/** Key used for the event handlers */
+/** Key used for the event handlers_lookup_map */
 #define EVENT_HANDLER_NAME "renderer"
 
 // endregion
