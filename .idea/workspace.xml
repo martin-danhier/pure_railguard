@@ -23,15 +23,6 @@
   <component name="ChangeListManager">
     <list default="true" id="38b0f475-f378-4382-948a-7f7ab04cde54" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/railguard/utils/arrays.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/railguard/utils/arrays.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/railguard/utils/event_sender.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/railguard/utils/event_sender.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/include/railguard/utils/maps.h" beforeDir="false" afterPath="$PROJECT_DIR$/include/railguard/utils/maps.h" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/renderer/renderer_vulkan.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/renderer/renderer_vulkan.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/window/window_sdl2.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/window/window_sdl2.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/utils/arrays.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/arrays.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/utils/event_sender.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/event_sender.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/utils/maps.c" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/maps.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/utils/test_hash_map.c" beforeDir="false" afterPath="$PROJECT_DIR$/tests/utils/test_hash_map.c" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -53,6 +44,11 @@
       <filtered-out-file-type name="TAG" />
       <filtered-out-file-type name="COMMIT_BY_MESSAGE" />
     </file-type-list>
+  </component>
+  <component name="HighlightingSettingsPerFile">
+    <setting file="file://$PROJECT_DIR$/include/railguard/utils/maps.h" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/tests/utils/test_hash_map.c" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/src/utils/maps.c" root0="FORCE_HIGHLIGHTING" />
   </component>
   <component name="MacroExpansionManager">
     <option name="directoryName" value="0a8j9m29" />
@@ -112,6 +108,7 @@
     <property name="cf.first.check.clang-format" value="false" />
     <property name="cidr.known.project.marker" value="true" />
     <property name="full.screen.before.presentation.mode" value="false" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../../00_IMPORTANT_STUFF/MuseScore" />
     <property name="nodejs_package_manager_path" value="npm" />
     <property name="settings.editor.selected.configurable" value="project.scopes" />
   </component>
@@ -161,11 +158,6 @@
         <option name="CLION.COMPOUND.BUILD" enabled="true" />
       </method>
     </configuration>
-    <configuration default="true" type="GradleAppRunConfiguration" factoryName="Application" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" PASS_PARENT_ENVS_2="true">
-      <method v="2">
-        <option name="com.jetbrains.cidr.cpp.gradle.execution.GradleNativeBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
-      </method>
-    </configuration>
     <list>
       <item itemvalue="Makefile Application.all" />
       <item itemvalue="Makefile Application.help" />
@@ -194,6 +186,10 @@
       <workItem from="1631200156990" duration="14327000" />
       <workItem from="1631258750389" duration="13993000" />
       <workItem from="1631803929960" duration="2326000" />
+      <workItem from="1631868195713" duration="1213000" />
+      <workItem from="1632298951157" duration="72000" />
+      <workItem from="1632319854743" duration="155000" />
+      <workItem from="1633354934188" duration="34000" />
     </task>
     <servers />
   </component>
