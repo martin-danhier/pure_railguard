@@ -11,6 +11,12 @@
     ],
     "unwantedRecommendations": [
         "twxs.cmake",
-        "numaru.vscode-cmake-lite"
+        "numaru.vscode-cmake-lite",
+        "googlecloudtools.cloudcode",
+        "firefox-devtools.vscode-firefox-debug",
+        "ms-kubernetes-tools.vscode-kubernetes-tools",
+        "ms-vscode.cpptools-extension-pack",
+        "mindaro.mindaro",
+        "austin.code-gnu-global"
     ]
 }

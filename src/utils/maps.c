@@ -332,7 +332,7 @@ size_t rg_struct_map_count(rg_struct_map *struct_map)
 }
 
 rg_hash_map_get_result rg_struct_map_get(rg_struct_map *struct_map, const char *key) {
-
+    
 }
 
 // endregion

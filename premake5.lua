@@ -90,7 +90,7 @@ if SDL_INCLUDE_DIR == nil or SDL_LIB_DIR == nil then
     -- If not, get the SDL2_PATH env variable
     local sdl_path = os.getenv('SDL2_PATH')
     if sdl_path == nil then
-        error("If SDL is not located at a conventional place, the root directory needs to be stored in the env variable SDL2_PATH.")
+        error("If SDL2 is not located at a conventional place, the root directory needs to be stored in the env variable SDL2_PATH.")
     end
 
     -- Get header from sdl path if missing

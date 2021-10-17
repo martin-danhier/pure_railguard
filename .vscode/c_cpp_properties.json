@@ -1,0 +1,25 @@
+{
+    "configurations": [
+        {
+            "name": "Windows",
+            // "defines": [
+            //     "RENDERER_VULKAN",
+            //     "WINDOW_SDL2"
+            // ],
+            // "intelliSenseMode": "windows-gcc-x64",
+            // "compilerPath": "C:\\ProgramData\\chocolatey\\bin\\gcc.exe",
+            // "cStandard": "c11",
+            // "cppStandard": "c++17",
+            // "includePath": [
+            //     "${default}",
+            //     "${workspaceFolder}/include",
+            //     "${VULKAN_SDK}/include",
+            //     "${workspaceFolder}/external/volk",
+            //     "${workspaceFolder}/external/vma/include",
+            //     "${SDL2_PATH}/include"
+            // ],
+            "configurationProvider": "numaru.vscode-cmake-lite"
+        }
+    ],
+    "version": 4
+}
