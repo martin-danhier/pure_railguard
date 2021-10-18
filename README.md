@@ -4,11 +4,12 @@
 
 ### Summary
 
+1. Clone this repository with argument `--recurse-submodules`
 1. Install Vulkan SDK
 2. Install SDK2 SDK and add an environment variable `SDL2_PATH` pointing to it if it is not at a standard location
 3. Install Premake5
 4. Install a C++ compiler
-5. 
+
 ### Windows
 
 With [Scoop](https://scoop.sh):

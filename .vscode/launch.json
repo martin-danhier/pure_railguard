@@ -17,7 +17,7 @@
             "name": "Debug",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/Debug/railguard",
+            "program": "${workspaceFolder}/bin/railguard",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -30,7 +30,7 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "Build (Debug)",
+            "preLaunchTask": "Build with Ninja (Debug)",
         }
     ]
 }

@@ -9,11 +9,12 @@
             "type": "shell",
             "command": "cmake",
             "options": {
-                "cwd": "${workspaceFolder}/build"
+                "cwd": "${workspaceFolder}"
             },
             "args": [
-                "..",
-                "-GNinja"
+                ".",
+                "-GNinja",
+                "-Bbuild"
             ],
         },
         // Premake task

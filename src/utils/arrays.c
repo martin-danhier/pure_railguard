@@ -138,8 +138,8 @@ void *rg_vector_set_element(rg_vector *p_vector, size_t pos, void *p_data)
     void *p_element = rg_vector_get_element(p_vector, pos);
     if (p_element != NULL)
     {
-        errno_t err = memcpy_s(p_element, p_vector->element_size, p_data, 1);
-        if (err == 0)
+        void *res = memcpy(p_element, p_data, p_vector->element_size);
+        if (res != NULL)
         {
             return p_element;
         }
@@ -187,9 +187,8 @@ bool rg_vector_copy(rg_vector *p_vector, size_t srcPos, size_t dstPos)
         return true;
     }
 
-    return memcpy_s(p_vector->data + (dstPos * p_vector->element_size),
-                    p_vector->element_size,
+    return memcpy(p_vector->data + (dstPos * p_vector->element_size),
                     p_vector + (srcPos * p_vector->element_size),
-                    1)
-           == 0;
+                    p_vector->element_size)
+           != NULL;
 }
