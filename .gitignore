@@ -9,6 +9,7 @@
 bin
 build
 cmakebuild
+cmake-build-*
 
 # Misc
 *.log
