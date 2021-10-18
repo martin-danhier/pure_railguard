@@ -1,8 +1,8 @@
 {
     // Disable C/C++ features that are already covered by ccls
-    // "C_Cpp.intelliSenseEngine": "Disabled",
-    // "C_Cpp.autocomplete": "Disabled",
-    // "C_Cpp.errorSquiggles": "Disabled",
+    "C_Cpp.intelliSenseEngine": "Disabled",
+    "C_Cpp.autocomplete": "Disabled",
+    "C_Cpp.errorSquiggles": "Disabled",
     "C_Cpp.formatting": "Disabled",
     // ccls settings
     "ccls.cache.directory": ".ccls-cache",
@@ -60,5 +60,5 @@
         "Railguard",
         "volk"
     ],
-    "C_Cpp.default.configurationProvider": "numaru.vscode-cmake-lite"
+    // "C_Cpp.default.configurationProvider": "numaru.vscode-cmake-lite"
 }

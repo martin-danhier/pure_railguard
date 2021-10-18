@@ -77,10 +77,10 @@ void *rg_vector_push_back(rg_vector *p_vector, void *p_data)
     rg_vector_ensure_capacity(p_vector, new_count);
 
     // Add the p_data:
-    void   *p_element = p_vector->data + (p_vector->count * p_vector->element_size);
-    errno_t res       = memcpy_s(p_element, p_vector->element_size, p_data, 1);
+    void *p_element = p_vector->data + (p_vector->count * p_vector->element_size);
+    void *res       = memcpy(p_element, p_data, p_vector->element_size);
 
-    if (res == 0)
+    if (res != NULL)
     {
         p_vector->count = new_count;
         return p_element;

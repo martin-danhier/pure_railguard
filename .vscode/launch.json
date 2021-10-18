@@ -6,11 +6,11 @@
     "configurations": [
         {
             "name": "Debug (Windows)",
-            "type": "cppvsdbg",
+            "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/Debug/railguard.exe",
+            "program": "${workspaceFolder}/bin/railguard.exe",
             "console": "integratedTerminal",
-            "preLaunchTask": "Build (Debug)",
+            "preLaunchTask": "Build with Ninja (Debug)",
             "cwd": "${workspaceFolder}"
         },
         {

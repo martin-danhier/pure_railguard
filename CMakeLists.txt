@@ -50,25 +50,28 @@ set(test_sources
 ###                       DEFINE TARGETS                       ###
 ##################################################################
 
+# Redirect outputs
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
+
 # The data is just added to the executable, because in some IDEs (QtCreator)
 # files are invisible when they are not explicitly part of the project.
 add_executable(railguard)
+target_sources(railguard PRIVATE src/main.c)
 
-target_sources(railguard PRIVATE
-        src/main.c
-        ${sources}
-        )
+# Set main project as a lib that will be used in the main executable and in tests
+add_library(railguard_lib STATIC)
+target_sources(railguard_lib PRIVATE ${sources})
 
 # Add include directory to allow includes with <> pair
-target_include_directories(railguard PUBLIC include)
+target_include_directories(railguard_lib PUBLIC include)
 
+# Link with executable
+target_link_libraries(railguard railguard_lib)
 
 # Copy resource files in the build directory
 # That way, they can be resolved relatively to the executable
 #file(COPY ${data} DESTINATION resources)
 
-# Redirect outputs
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/bin")
 
 ##################################################################
 ###                   COMPILER CONFIGURATION                   ###
@@ -92,7 +95,7 @@ add_subdirectory(external)
 
 # Link dependencies
 if (DEFINED RENDERER_VULKAN)
-    target_link_libraries(railguard PUBLIC
+    target_link_libraries(railguard_lib PUBLIC
             Vulkan::Vulkan
             vma
             volk
@@ -100,7 +103,7 @@ if (DEFINED RENDERER_VULKAN)
 endif ()
 
 if (DEFINED WINDOW_SDL2)
-    target_link_libraries(railguard PUBLIC
+    target_link_libraries(railguard_lib PUBLIC
             sdl2
             )
 endif ()
@@ -119,8 +122,7 @@ target_sources(unit_tests PRIVATE
         )
 
 # Link original executable as lib to inherit dependencies
-set_target_properties(railguard PROPERTIES ENABLE_EXPORTS on)
-target_link_libraries(unit_tests PUBLIC railguard)
+target_link_libraries(unit_tests PUBLIC railguard_lib)
 
 # Definition to recognize tests from inside the code
 target_compile_definitions(unit_tests PUBLIC UNIT_TESTS)

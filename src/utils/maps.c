@@ -294,7 +294,7 @@ typedef struct rg_struct_map
 
 const char *rg_struct_map_get_key_of_storage_element(rg_struct_map *struct_map, void *p_storage_element)
 {
-    return *((const char **) p_storage_element + struct_map->value_size);
+    return *((const char **) (p_storage_element + struct_map->value_size));
 }
 
 // --=== Functions ===--
@@ -334,11 +334,10 @@ rg_struct_map *rg_create_struct_map(size_t value_size)
 void rg_destroy_struct_map(rg_struct_map **p_struct_map)
 {
     // Destroy the vector
-    rg_destroy_vector(&(*p_struct_map)->storage);
+    free((*p_struct_map)->storage.data);
 
     // Destroy the hash map
-    rg_hash_map *hash_map = &(*p_struct_map)->hash_map;
-    rg_destroy_hash_map(&hash_map);
+    free((*p_struct_map)->hash_map.data);
 
     // Destroy the struct map
     free(*p_struct_map);
@@ -384,8 +383,10 @@ void *rg_struct_map_set(rg_struct_map *p_struct_map, const char *p_key, void *p_
     {
         // There is a value: there is a place in the storage we can modify.
         p_data_in_storage = rg_vector_get_element(&p_struct_map->storage, get_result.value.as_num);
-        if (memcpy_s(p_data_in_storage, p_struct_map->value_size, p_data, 1) != 0)
+        if (memcpy(p_data_in_storage, p_data, p_struct_map->value_size) != NULL)
+        {
             return NULL;
+        }
         // We don't need to update the map nor the key since it points to a valid storage element.
     }
     else
@@ -398,11 +399,11 @@ void *rg_struct_map_set(rg_struct_map *p_struct_map, const char *p_key, void *p_
         {
             bool success = true;
             // Store value
-            success = memcpy_s(p_data_in_storage, p_struct_map->value_size, p_data, 1) == 0;
+            success = memcpy(p_data_in_storage, p_data, p_struct_map->value_size) != NULL;
             // Store key
             if (success)
             {
-                success = memcpy_s(p_data_in_storage + p_struct_map->value_size, sizeof(const char *), &p_key, 1) == 0;
+                success = memcpy(p_data_in_storage + p_struct_map->value_size, &p_key, sizeof(const char *)) != NULL;
             }
             // Update hash map
             if (success)
