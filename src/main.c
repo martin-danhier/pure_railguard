@@ -1,6 +1,7 @@
 #include <railguard/core/engine.h>
 
-int main() {
+int main(void)
+{
     // Init the engine
     rg_engine *engine = rg_create_engine();
 

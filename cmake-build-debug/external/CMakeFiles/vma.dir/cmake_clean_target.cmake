@@ -1,3 +1,3 @@
 file(REMOVE_RECURSE
-  "vma.lib"
+  "libvma.a"
 )

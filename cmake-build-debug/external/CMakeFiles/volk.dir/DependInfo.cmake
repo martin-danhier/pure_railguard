@@ -8,13 +8,15 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_C
-  "G:/Users/marti/Documents/pure_railguard/external/volk/volk.c" "G:/Users/marti/Documents/pure_railguard/cmake-build-debug/external/CMakeFiles/volk.dir/volk/volk.c.obj"
+  "E:/Nextcloud/Documents/02_PROGRA/01_GRAPHICS_PROGRAMMING/pure_railguard/external/volk/volk.c" "E:/Nextcloud/Documents/02_PROGRA/01_GRAPHICS_PROGRAMMING/pure_railguard/cmake-build-debug/external/CMakeFiles/volk.dir/volk/volk.c.obj"
   )
-set(CMAKE_C_COMPILER_ID "MSVC")
+set(CMAKE_C_COMPILER_ID "GNU")
 
 # Preprocessor definitions for this target.
 set(CMAKE_TARGET_DEFINITIONS_C
+  "DEBUG"
   "RENDERER_VULKAN"
+  "USE_VK_VALIDATION_LAYERS"
   "VK_NO_PROTOTYPE"
   "WINDOW_SDL2"
   )

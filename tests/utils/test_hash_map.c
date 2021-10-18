@@ -2,7 +2,7 @@
 #include <string.h>
 #include <assert.h>
 
-int main(void)
+int test_hash_map(void)
 {
     rg_hash_map *map = rg_create_hash_map();
     assert(map != NULL);

@@ -11,7 +11,7 @@ typedef struct rg_extent_2d
 } rg_extent_2d;
 
 typedef struct rg_window rg_window;
-typedef void (*rg_event_handler)(void *data);
+typedef struct rg_event_handler rg_event_handler;
 
 // Event data
 typedef struct rg_window_resize_event_data {

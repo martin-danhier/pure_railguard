@@ -6,9 +6,9 @@ file(REMOVE_RECURSE
   "CMakeFiles/railguard.dir/src/utils/arrays.c.obj"
   "CMakeFiles/railguard.dir/src/utils/event_sender.c.obj"
   "CMakeFiles/railguard.dir/src/utils/maps.c.obj"
+  "librailguard.dll.a"
   "railguard.exe"
   "railguard.exe.manifest"
-  "railguard.lib"
   "railguard.pdb"
 )
 

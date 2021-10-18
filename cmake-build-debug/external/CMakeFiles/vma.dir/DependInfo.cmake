@@ -8,13 +8,15 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_CXX
-  "G:/Users/marti/Documents/pure_railguard/external/vma_implementation.cpp" "G:/Users/marti/Documents/pure_railguard/cmake-build-debug/external/CMakeFiles/vma.dir/vma_implementation.cpp.obj"
+  "E:/Nextcloud/Documents/02_PROGRA/01_GRAPHICS_PROGRAMMING/pure_railguard/external/vma_implementation.cpp" "E:/Nextcloud/Documents/02_PROGRA/01_GRAPHICS_PROGRAMMING/pure_railguard/cmake-build-debug/external/CMakeFiles/vma.dir/vma_implementation.cpp.obj"
   )
-set(CMAKE_CXX_COMPILER_ID "MSVC")
+set(CMAKE_CXX_COMPILER_ID "GNU")
 
 # Preprocessor definitions for this target.
 set(CMAKE_TARGET_DEFINITIONS_CXX
+  "DEBUG"
   "RENDERER_VULKAN"
+  "USE_VK_VALIDATION_LAYERS"
   "VK_NO_PROTOTYPE"
   "WINDOW_SDL2"
   )

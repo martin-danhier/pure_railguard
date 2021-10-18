@@ -1,0 +1,1 @@
+  -LC:/Users/marti/scoop/apps/SDL2/current/lib  librailguard.dll.a external/libvma.a external/libvolk.a C:/Users/marti/scoop/apps/vulkan/current/Lib/vulkan-1.lib -lSDL2 -lSDL2main -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 
