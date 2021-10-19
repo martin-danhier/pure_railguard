@@ -403,8 +403,7 @@ uint32_t rg_renderer_rate_physical_device(VkPhysicalDevice device)
 // Callback called when the window is resized
 void rg_renderer_handle_window_resize_event(rg_window_resize_event_data *data, rg_renderer *renderer)
 {
-    printf("The window was resized ! New extent: { .width = %d, .height = %d }\n", data->new_extent.width, data->new_extent.height);
-
+    // Recreate swap chain
 }
 
 // endregion
@@ -1079,6 +1078,9 @@ rg_renderer *
     renderer->swapchains = rg_create_array_zeroed(swapchain_capacity, sizeof(rg_swapchain));
 
     // --=== Subscribe to window events ===--
+
+
+
     rg_renderer_check(
         rg_window_resize_event_subscribe(window,
                                          EVENT_HANDLER_NAME,
