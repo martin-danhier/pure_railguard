@@ -43,7 +43,7 @@ set(sources
         )
 
 set(test_sources
-        "tests/utils/test_hash_map.c"
+        "tests/utils/test_hash_map.h"
         )
 
 ##################################################################
@@ -117,6 +117,7 @@ endif ()
 add_executable(unit_tests)
 target_sources(unit_tests PRIVATE
         tests/main.c
+        tests/framework/test_framework.c
         ${sources}
         ${test_sources}
         )

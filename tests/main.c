@@ -1,19 +1,9 @@
 #include "framework/test_framework.h"
-#include <railguard/utils/arrays.h>
-
-TEST(Array) {
-    ASSERT_TRUE(true);
-
-}
-
-TEST(Truc) {
-    ASSERT_FALSE(false);
-}
+#include "utils/test_hash_map.h"
+#include "utils/test_struct_map.h"
 
 // Entry point for the tests
 int main(void)
 {
-    RUN_ALL_TESTS();
-
-    return 0;
+    return RUN_ALL_TESTS();
 }

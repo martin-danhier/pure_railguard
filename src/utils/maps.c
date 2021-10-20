@@ -294,7 +294,7 @@ typedef struct rg_struct_map
 
 const char *rg_struct_map_get_key_of_storage_element(rg_struct_map *struct_map, void *p_storage_element)
 {
-    return *((const char **) (p_storage_element + struct_map->value_size));
+    return *(const char **) (p_storage_element + struct_map->value_size);
 }
 
 // --=== Functions ===--
@@ -429,8 +429,6 @@ void *rg_struct_map_set(rg_struct_map *p_struct_map, const char *p_key, void *p_
 
 void rg_struct_map_erase(rg_struct_map *struct_map, const char *key)
 {
-    // Global idea: move the last element of the array
-
     // Look up the element
     rg_hash_map_get_result get_result = rg_hash_map_get(&struct_map->hash_map, key);
     if (get_result.exists)
