@@ -95,6 +95,7 @@ typedef struct rg_renderer
     VmaAllocator     allocator;
     // TODO use a dynamic structure to be able to store a variable amount of surface for deletion
     // Maybe create a sub struct specialized to keep track of objects for deletion
+
     VkSurfaceKHR surface;
 #ifdef USE_VK_VALIDATION_LAYERS
     VkDebugUtilsMessengerEXT debug_messenger;
