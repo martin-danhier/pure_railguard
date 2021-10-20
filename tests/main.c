@@ -1,16 +1,19 @@
 #include "framework/test_framework.h"
 #include <railguard/utils/arrays.h>
 
-TEST(array) {
-    ASSERT_TRUE(false);
+TEST(Array) {
+    ASSERT_TRUE(true);
+
+}
+
+TEST(Truc) {
+    ASSERT_FALSE(false);
 }
 
 // Entry point for the tests
 int main(void)
 {
-    tf_context *context = tf_create_context();
-    test_array(context);
-
+    RUN_ALL_TESTS();
 
     return 0;
 }
