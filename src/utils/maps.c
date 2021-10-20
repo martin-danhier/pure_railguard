@@ -383,9 +383,8 @@ void *rg_struct_map_set(rg_struct_map *p_struct_map, const char *p_key, void *p_
     {
         // There is a value: there is a place in the storage we can modify.
         p_data_in_storage = rg_vector_get_element(&p_struct_map->storage, get_result.value.as_num);
-        if (memcpy(p_data_in_storage, p_data, p_struct_map->value_size) != NULL)
-        {
-            return NULL;
+        if (p_data_in_storage != NULL) {
+            return memcpy(p_data_in_storage, p_data, p_struct_map->value_size);
         }
         // We don't need to update the map nor the key since it points to a valid storage element.
     }
@@ -491,6 +490,9 @@ bool rg_struct_map_next(rg_struct_map_it *it)
 
         return true;
     }
+
+    it->value = NULL;
+    it->key = NULL;
     return false;
 }
 

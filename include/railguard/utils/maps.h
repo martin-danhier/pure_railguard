@@ -50,12 +50,6 @@ bool                   rg_hash_map_next(rg_hash_map_it *it);
  */
 typedef struct rg_struct_map rg_struct_map;
 
-typedef struct rg_struct_map_get_result
-{
-    bool  exists;
-    void *value;
-} rg_struct_map_get_result;
-
 typedef struct rg_struct_map_it
 {
     const char    *key;

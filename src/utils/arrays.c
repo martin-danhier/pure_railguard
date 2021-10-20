@@ -188,7 +188,7 @@ bool rg_vector_copy(rg_vector *p_vector, size_t srcPos, size_t dstPos)
     }
 
     return memcpy(p_vector->data + (dstPos * p_vector->element_size),
-                    p_vector + (srcPos * p_vector->element_size),
+                    p_vector->data + (srcPos * p_vector->element_size),
                     p_vector->element_size)
            != NULL;
 }
