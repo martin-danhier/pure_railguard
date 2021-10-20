@@ -35,6 +35,7 @@
         "**/.hg": false,
         "**/CVS": false,
         "**/.DS_Store": false,
+        "**/Thumbs.db": false,
         "premake5.lua": false,
         ".gitignore": false,
         ".ccls": false,
@@ -55,6 +56,9 @@
         "*.h": "c"
     },
     "cSpell.words": [
+        "MSVC",
+        "Railguard",
         "volk"
-    ]
+    ],
+    // "C_Cpp.default.configurationProvider": "numaru.vscode-cmake-lite"
 }

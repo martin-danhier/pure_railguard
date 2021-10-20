@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "name": "Windows",
+            "defines": [
+                "RENDERER_VULKAN",
+                "WINDOW_SDL2"
+            ],
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "includePath": [
+                "${default}",
+                "${workspaceFolder}/include",
+                "${VULKAN_SDK}/include",
+                "${workspaceFolder}/external/volk",
+                "${workspaceFolder}/external/vma/include",
+                "${SDL2_PATH}/include"
+            ],
+        }
+    ],
+    "version": 4
+}

@@ -50,39 +50,36 @@ bool                   rg_hash_map_next(rg_hash_map_it *it);
  */
 typedef struct rg_struct_map rg_struct_map;
 
-typedef struct rg_struct_map_get_result
-{
-    bool  exists;
-    void *value;
-} rg_struct_map_get_result;
-
 typedef struct rg_struct_map_it
 {
     const char    *key;
     void          *value;
+    size_t         next_index;
     rg_struct_map *struct_map;
-    size_t         current_index;
 } rg_struct_map_it;
 
 rg_struct_map *rg_create_struct_map(size_t value_size);
 void           rg_destroy_struct_map(rg_struct_map **p_struct_map);
 /**
  * Gets a value in the map.
- * @param struct_map
- * @param key
+ * @param p_struct_map
+ * @param p_key
  * @return a struct containing a exists boolean which is true if the value exists or not in the map. If exists is true, value contains
  * a pointer to the value. This pointer points into the map's internal storage and is value_size bytes long.
  */
-rg_hash_map_get_result rg_struct_map_get(rg_struct_map *struct_map, const char *key);
+void *rg_struct_map_get(rg_struct_map *p_struct_map, const char *p_key);
 /**
- * @brief Sets the value of a key.
- * @param struct_map
- * @param key
+ * @brief Sets the value of a p_key.
+ * @param p_struct_map is the struct map to be accessed
+ * @param p_key is the p_key of the data in the map.
  * @param p_data is a pointer to the data. It must be at least value_size bytes long. The data will be copied inside the map.
- * @returns true if the affectation was successful.
+ * @returns the address of the data in the storage if the affectation was successful, NULL otherwise. This pointer will thus stay valid
+ * while the element is still stored in the map and the map is still valid, even if the pointer passed to the p_data parameter is not
+ * valid anymore.
  */
-bool             rg_struct_map_set(rg_struct_map *struct_map, const char *key, void *p_data);
+void            *rg_struct_map_set(rg_struct_map *p_struct_map, const char *p_key, void *p_data);
 size_t           rg_struct_map_count(rg_struct_map *struct_map);
 void             rg_struct_map_erase(rg_struct_map *struct_map, const char *key);
 rg_struct_map_it rg_struct_map_iterator(rg_struct_map *struct_map);
 bool             rg_struct_map_next(rg_struct_map_it *it);
+bool             rg_struct_map_exists(rg_struct_map *struct_map, const char *p_key);

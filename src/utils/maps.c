@@ -74,15 +74,17 @@ bool rg_hash_map_set_entry(rg_hash_map_entry *entries, size_t capacity, const ch
     // Index is guarantied to point to an empty slot now, given the loop above.
     // We will use that one.
 
-    if (count != NULL) {
+    if (count != NULL)
+    {
         key = strdup(key);
-        if (key == NULL) {
+        if (key == NULL)
+        {
             return false;
         }
         (*count)++;
     }
 
-    entries[index].key = (char *) key;
+    entries[index].key   = (char *) key;
     entries[index].value = value;
     return true;
 }
@@ -91,19 +93,23 @@ bool rg_hash_map_expand(rg_hash_map *hash_map)
 {
     // Always use powers of 2, so we can replace modulo with and operation
     size_t new_capacity = hash_map->capacity * 2;
-    if (new_capacity < hash_map->capacity) {
+    if (new_capacity < hash_map->capacity)
+    {
         return false;
     }
 
     rg_hash_map_entry *new_entries = calloc(new_capacity, sizeof(rg_hash_map_entry));
-    if (new_entries == NULL) {
+    if (new_entries == NULL)
+    {
         return false;
     }
 
     // Move the entries to the new array
-    for (size_t i = 0; i < hash_map->capacity; i++) {
+    for (size_t i = 0; i < hash_map->capacity; i++)
+    {
         rg_hash_map_entry entry = hash_map->data[i];
-        if (entry.key != NULL) {
+        if (entry.key != NULL)
+        {
             rg_hash_map_set_entry(new_entries, new_capacity, entry.key, entry.value, NULL);
         }
     }
@@ -210,22 +216,24 @@ rg_hash_map_it rg_hash_map_iterator(rg_hash_map *hash_map)
 {
     // Return iterator at the beginning
     return (rg_hash_map_it) {
-        .hash_map = hash_map,
+        .hash_map      = hash_map,
         .current_index = 0,
     };
 }
 bool rg_hash_map_next(rg_hash_map_it *it)
 {
     rg_hash_map *map = it->hash_map;
-    while (it->current_index < map->capacity) {
+    while (it->current_index < map->capacity)
+    {
         size_t i = it->current_index;
 
         // Increment index
         it->current_index++;
 
         // If the slot is not empty, use it
-        if (map->data[i].key != NULL) {
-            it->key = map->data[i].key;
+        if (map->data[i].key != NULL)
+        {
+            it->key   = map->data[i].key;
             it->value = map->data[i].value;
             return true;
         }
@@ -278,8 +286,16 @@ typedef struct rg_struct_map
 {
     rg_hash_map hash_map; // We take advantage of the fact that we are in the same c file to avoid a pointer here
     rg_vector   storage;
+    size_t      value_size;
 
 } rg_struct_map;
+
+// --=== Utils functions ===--
+
+const char *rg_struct_map_get_key_of_storage_element(rg_struct_map *struct_map, void *p_storage_element)
+{
+    return *(const char **) (p_storage_element + struct_map->value_size);
+}
 
 // --=== Functions ===--
 
@@ -299,7 +315,10 @@ rg_struct_map *rg_create_struct_map(size_t value_size)
     }
 
     // Init the vector
-    if (!rg_create_vector(2, value_size, &map->storage))
+    // The element size is value_size + size of pointer to key
+    // That way, the storage will consist of an array alternating values and keys
+    // Storing the key in the storage allows to create an iterator that does not even look at the hash map
+    if (!rg_create_vector(2, value_size + sizeof(const char *), &map->storage))
     {
         rg_hash_map *hash_map = &map->hash_map;
         rg_destroy_hash_map(&hash_map);
@@ -307,17 +326,18 @@ rg_struct_map *rg_create_struct_map(size_t value_size)
         return NULL;
     }
 
+    map->value_size = value_size;
+
     return map;
 }
 
 void rg_destroy_struct_map(rg_struct_map **p_struct_map)
 {
     // Destroy the vector
-    rg_destroy_vector(&(*p_struct_map)->storage);
+    free((*p_struct_map)->storage.data);
 
     // Destroy the hash map
-    rg_hash_map *hash_map = &(*p_struct_map)->hash_map;
-    rg_destroy_hash_map(&hash_map);
+    free((*p_struct_map)->hash_map.data);
 
     // Destroy the struct map
     free(*p_struct_map);
@@ -331,8 +351,149 @@ size_t rg_struct_map_count(rg_struct_map *struct_map)
     return struct_map->hash_map.count;
 }
 
-rg_hash_map_get_result rg_struct_map_get(rg_struct_map *struct_map, const char *key) {
+void *rg_struct_map_get(rg_struct_map *p_struct_map, const char *p_key)
+{
+    // Check if there is already a value there in the map
+    rg_hash_map_get_result get_result = rg_hash_map_get(&p_struct_map->hash_map, p_key);
 
+    if (get_result.exists)
+    {
+        // There is a value, and the hash map returned its index in the storage
+        return rg_vector_get_element(&p_struct_map->storage, get_result.value.as_num);
+    }
+    return NULL;
+}
+
+bool rg_struct_map_exists(rg_struct_map *struct_map, const char *p_key)
+{
+    // Check if there is already a value there in the map
+    // No need to get the element from the storage
+    rg_hash_map_get_result get_result = rg_hash_map_get(&struct_map->hash_map, p_key);
+    return get_result.exists;
+}
+
+void *rg_struct_map_set(rg_struct_map *p_struct_map, const char *p_key, void *p_data)
+{
+    // Check if there is already a value there in the map
+    rg_hash_map_get_result get_result = rg_hash_map_get(&p_struct_map->hash_map, p_key);
+
+    void *p_data_in_storage = NULL;
+
+    if (get_result.exists)
+    {
+        // There is a value: there is a place in the storage we can modify.
+        p_data_in_storage = rg_vector_get_element(&p_struct_map->storage, get_result.value.as_num);
+        if (p_data_in_storage != NULL) {
+            return memcpy(p_data_in_storage, p_data, p_struct_map->value_size);
+        }
+        // We don't need to update the map nor the key since it points to a valid storage element.
+    }
+    else
+    {
+        // There is no value: we need to push the data in a new storage index.
+        p_data_in_storage = rg_vector_push_back_no_data(&p_struct_map->storage);
+
+        // If it worked, in this case, we also need to update the map to point to our new storage slot.
+        if (p_data_in_storage != NULL)
+        {
+            bool success = true;
+            // Store value
+            success = memcpy(p_data_in_storage, p_data, p_struct_map->value_size) != NULL;
+            // Store key
+            if (success)
+            {
+                success = memcpy(p_data_in_storage + p_struct_map->value_size, &p_key, sizeof(const char *)) != NULL;
+            }
+            // Update hash map
+            if (success)
+            {
+                success = rg_hash_map_set(&p_struct_map->hash_map,
+                                          p_key,
+                                          (rg_hash_map_value_t) {
+                                              .as_num = rg_vector_last_index(&p_struct_map->storage),
+                                          });
+            }
+
+            // If there was an error, we shouldn't keep the value in the storage.
+            if (!success)
+            {
+                rg_vector_pop_back(&p_struct_map->storage);
+                p_data_in_storage = NULL;
+            }
+        }
+    }
+
+    return p_data_in_storage;
+}
+
+void rg_struct_map_erase(rg_struct_map *struct_map, const char *key)
+{
+    // Look up the element
+    rg_hash_map_get_result get_result = rg_hash_map_get(&struct_map->hash_map, key);
+    if (get_result.exists)
+    {
+        // We need to remove the element from the storage if it exists
+        size_t deleted_slot_index = get_result.value.as_num;
+        size_t last_slot_index    = rg_vector_last_index(&struct_map->storage);
+
+        bool success = true;
+
+        // If it is not the last slot, move the last slot to the deleted slot, that way data stays packed together
+        if (deleted_slot_index < last_slot_index)
+        {
+            // Copy the last element to the deleted slot
+            success = rg_vector_copy(&struct_map->storage, last_slot_index, deleted_slot_index);
+            if (success)
+            {
+                // In case of success, we need to update the map to move the element that was last
+                // For that, we can use the key that is stored with the data
+                void *p_updated_slot = rg_vector_get_element(&struct_map->storage, deleted_slot_index);
+                if (p_updated_slot != NULL)
+                {
+                    const char *last_elements_key = rg_struct_map_get_key_of_storage_element(struct_map, p_updated_slot);
+                    success                       = rg_hash_map_set(&struct_map->hash_map,
+                                                                    last_elements_key,
+                                                                    (rg_hash_map_value_t) {.as_num = deleted_slot_index});
+                }
+            }
+        }
+
+        // Everything worked: we can pop the storage and remove the deleted key from the map
+        if (success)
+        {
+            rg_vector_pop_back(&struct_map->storage);
+            rg_hash_map_erase(&struct_map->hash_map, key);
+        }
+    }
+}
+
+rg_struct_map_it rg_struct_map_iterator(rg_struct_map *struct_map)
+{
+    return (rg_struct_map_it) {
+        .struct_map = struct_map,
+        .next_index = 0,
+    };
+}
+
+bool rg_struct_map_next(rg_struct_map_it *it)
+{
+    rg_vector *storage = &it->struct_map->storage;
+    while (it->next_index < storage->count)
+    {
+        size_t i = it->next_index;
+
+        // Increment index
+        it->next_index++;
+
+        it->value = storage->data + i * storage->element_size;
+        it->key   = rg_struct_map_get_key_of_storage_element(it->struct_map, it->value);
+
+        return true;
+    }
+
+    it->value = NULL;
+    it->key = NULL;
+    return false;
 }
 
 // endregion

@@ -6,18 +6,18 @@
     "configurations": [
         {
             "name": "Debug (Windows)",
-            "type": "cppvsdbg",
+            "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/Debug/railguard.exe",
+            "program": "${workspaceFolder}/bin/railguard.exe",
             "console": "integratedTerminal",
-            "preLaunchTask": "Build (Debug)",
+            "preLaunchTask": "Build with Ninja (Debug)",
             "cwd": "${workspaceFolder}"
         },
         {
             "name": "Debug",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/Debug/railguard",
+            "program": "${workspaceFolder}/bin/railguard",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -30,7 +30,7 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "Build (Debug)",
+            "preLaunchTask": "Build with Ninja (Debug)",
         }
     ]
 }

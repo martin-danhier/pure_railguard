@@ -8,6 +8,7 @@
 
 #include <SDL2/SDL.h>
 #include <stdio.h>
+#include <stdlib.h>
 #ifdef RENDERER_VULKAN
 #include <railguard/utils/event_sender.h>
 
