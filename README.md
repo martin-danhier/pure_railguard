@@ -20,6 +20,7 @@ With [Scoop](https://scoop.sh):
 5. Edit the `PATH` user variable and add `C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin` to add MSBuild to your PATH
 
 ## Setup an IDE
+
 ### Visual Studio Code (official)
 
 1. Install recommended extensions
