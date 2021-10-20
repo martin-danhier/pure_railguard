@@ -1,5 +1,6 @@
 /**
- * @file Simple custom testing framework for C or C++ projects, inspired by Google Tests API.
+ * @file Simple lightweight testing framework for C or C++ projects, inspired by Google Tests API.
+ * @
  */
 
 #pragma once
