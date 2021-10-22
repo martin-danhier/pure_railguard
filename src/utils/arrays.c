@@ -42,6 +42,7 @@ bool rg_create_vector(size_t initial_capacity, size_t element_size, rg_vector *p
     // Init default fields
     p_dest_vector->capacity     = initial_capacity;
     p_dest_vector->element_size = element_size;
+    p_dest_vector->growth_amount = 1;
     p_dest_vector->count        = 0;
     p_dest_vector->data         = malloc(element_size * initial_capacity);
 
@@ -65,8 +66,21 @@ void rg_vector_ensure_capacity(rg_vector *p_vector, size_t required_minimum_capa
     // Resize if smaller than required capacity
     if (p_vector->capacity < required_minimum_capacity)
     {
-        p_vector->data     = realloc(p_vector->data, required_minimum_capacity * p_vector->element_size);
-        p_vector->capacity = required_minimum_capacity;
+        // Grow with the growth amount, except if it does not reach the required capacity
+        size_t new_capacity = p_vector->count + p_vector->growth_amount;
+        if (required_minimum_capacity > new_capacity)
+        {
+            new_capacity = required_minimum_capacity;
+        }
+        else
+        {
+            // Multiply the growth amount, that way the more we push in a vector, the more it will try to anticipate
+            // Same behavior as cpp vector
+            p_vector->growth_amount *= 2;
+        }
+
+        p_vector->data     = realloc(p_vector->data, new_capacity * p_vector->element_size);
+        p_vector->capacity = new_capacity;
     }
 }
 
@@ -150,26 +164,25 @@ void *rg_vector_set_element(rg_vector *p_vector, size_t pos, void *p_data)
 rg_vector_it rg_vector_iterator(rg_vector *p_vector)
 {
     return (rg_vector_it) {
-        .next_index = 0,
+        .index  = -1,
         .vector     = p_vector,
     };
 }
 
 bool rg_vector_next(rg_vector_it *it)
 {
+    // Increment index
+    it->index++;
+
     rg_vector *vec = it->vector;
-    while (it->next_index < vec->count)
+    if (it->index < vec->count)
     {
-        size_t i = it->next_index;
-
-        // Increment index
-        it->next_index++;
-
-        it->value = vec->data + (i * vec->element_size);
+        it->value = vec->data + (it->index * vec->element_size);
         return true;
     }
 
     // When the loop is finished, there are no more elements
+    it->value = NULL;
     return false;
 }
 
@@ -188,7 +201,12 @@ bool rg_vector_copy(rg_vector *p_vector, size_t srcPos, size_t dstPos)
     }
 
     return memcpy(p_vector->data + (dstPos * p_vector->element_size),
-                    p_vector->data + (srcPos * p_vector->element_size),
-                    p_vector->element_size)
+                  p_vector->data + (srcPos * p_vector->element_size),
+                  p_vector->element_size)
            != NULL;
+}
+
+void rg_vector_clear(rg_vector *p_vector)
+{
+    p_vector->count = 0;
 }

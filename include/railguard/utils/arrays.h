@@ -44,12 +44,16 @@ typedef struct rg_vector
      *  capacity * element_size bytes.
      */
     void *data;
+    /**
+     * Value defining by how much the vector should grow if a push doesn't have enough space.
+     */
+    size_t growth_amount;
 } rg_vector;
 
 typedef struct rg_vector_it
 {
     rg_vector *vector;
-    size_t     next_index;
+    size_t     index;
     void      *value;
 } rg_vector_it;
 
@@ -151,5 +155,11 @@ size_t rg_vector_last_index(rg_vector *p_vector);
  * @example With an array comparison, it would look like: arr[dstPos] = arr[srcPos]
  */
 bool rg_vector_copy(rg_vector *p_vector, size_t srcPos, size_t dstPos);
+/**
+ * Clears the vector without deallocating it.
+ * @param p_vector The vector to clear
+ */
+void rg_vector_clear(rg_vector *p_vector);
+
 rg_vector_it rg_vector_iterator(rg_vector *p_vector);
 bool         rg_vector_next(rg_vector_it *it);

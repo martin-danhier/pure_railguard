@@ -1,5 +1,8 @@
+#pragma once
+
 #include "../framework/test_framework.h"
 #include "string.h"
+
 
 typedef struct rg_test_struct_map_data
 {

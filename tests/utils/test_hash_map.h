@@ -1,5 +1,8 @@
+#pragma once
+
 #include "../framework/test_framework.h"
 #include <railguard/utils/maps.h>
+
 
 #include <string.h>
 
