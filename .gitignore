@@ -12,6 +12,7 @@ cmakebuild
 cmake-build-debug
 cmake-build-release
 cmake-build-debugwithrelinfo
+cmake-build-debug-mingw
 
 # Misc
 *.log

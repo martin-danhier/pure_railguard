@@ -9,21 +9,55 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef WIN64
+#include <windows.h>
+#endif
+
 // Macros
 
-#define TF_FORMAT_BOLD_RED   "\033[31;1m"
-#define TF_FORMAT_BOLD_GREEN "\033[32;1m"
-#define TF_FORMAT_RED        "\033[31m"
-#define TF_FORMAT_YELLOW     "\033[93m"
-#define TF_FORMAT_BOLD       "\033[1m"
-#define TF_FORMAT_RESET      "\033[0m"
+// On Windows, without Windows Terminal, ANSI color codes are not supported
+#ifdef WIN64
+
+// On Windows, we need to store the previous color in order to reset it
+HANDLE TF_CONSOLE_HANDLE          = 0;
+WORD   TF_DEFAULT_COLOR_ATTRIBUTE = 0;
+
+// Inits the stored variables
+#define TF_INIT_FORMATTING                                                        \
+    do                                                                            \
+    {                                                                             \
+        TF_CONSOLE_HANDLE                      = GetStdHandle(STD_OUTPUT_HANDLE); \
+        CONSOLE_SCREEN_BUFFER_INFO consoleInfo = {};                              \
+        GetConsoleScreenBufferInfo(TF_CONSOLE_HANDLE, &consoleInfo);              \
+        TF_DEFAULT_COLOR_ATTRIBUTE = consoleInfo.wAttributes;                     \
+    } while (0)
+
+// Applies the various colors and settings
+#define TF_FORMAT_BOLD_RED   SetConsoleTextAttribute(TF_CONSOLE_HANDLE, 0xC)
+#define TF_FORMAT_BOLD_GREEN SetConsoleTextAttribute(TF_CONSOLE_HANDLE, 0xA)
+#define TF_FORMAT_RED        SetConsoleTextAttribute(TF_CONSOLE_HANDLE, 0x4)
+#define TF_FORMAT_YELLOW     SetConsoleTextAttribute(TF_CONSOLE_HANDLE, 0x6)
+#define TF_FORMAT_BOLD       SetConsoleTextAttribute(TF_CONSOLE_HANDLE, 0xF)
+#define TF_FORMAT_RESET      SetConsoleTextAttribute(TF_CONSOLE_HANDLE, TF_DEFAULT_COLOR_ATTRIBUTE)
+
+#else
+
+// On civilized terminals, we just need to print an ANSI color code.
+#define TF_INIT_FORMATTING
+#define TF_FORMAT_BOLD_RED   printf("\033[31;1m")
+#define TF_FORMAT_BOLD_GREEN printf("\033[32;1m")
+#define TF_FORMAT_RED        printf("\033[31m")
+#define TF_FORMAT_YELLOW     printf("\033[93m")
+#define TF_FORMAT_BOLD       printf("\033[1m")
+#define TF_FORMAT_RESET      printf("\033[0m")
+#endif
 
 // Types
 
 typedef enum tf_error_severity
 {
-    ERROR,
-    WARNING
+    TF_ERROR,
+    TF_WARNING
 } tf_error_severity;
 
 typedef struct tf_error
@@ -205,12 +239,9 @@ bool tf_manager_run_all_tests(tf_test_manager *manager)
         tf_test *current_test = it.value;
 
         // Print progress
-        printf("%s[Test %llu/%llu] \"%s\"%s",
-               TF_FORMAT_BOLD,
-               it.index + 1,
-               manager->registered_tests.count,
-               current_test->name,
-               TF_FORMAT_RESET);
+        TF_FORMAT_BOLD;
+        printf("[Test %llu/%llu] \"%s\"", it.index + 1, manager->registered_tests.count, current_test->name);
+        TF_FORMAT_RESET;
 
         // Init its context
         current_test->context = tf_create_context();
@@ -218,15 +249,20 @@ bool tf_manager_run_all_tests(tf_test_manager *manager)
         current_test->pfn_test(current_test->context);
 
         // Print result
+        printf("\t ---> ");
         if (current_test->context->errors.count == 0)
         {
-            printf("\t ---> %sPASSED%s\n", TF_FORMAT_BOLD_GREEN, TF_FORMAT_RESET);
+            TF_FORMAT_BOLD_GREEN;
+            printf("PASSED");
         }
         else
         {
-            printf("\t ---> %sFAILED%s\n", TF_FORMAT_BOLD_RED, TF_FORMAT_RESET);
+            TF_FORMAT_BOLD_RED;
+            printf("FAILED");
             failed_counter++;
         }
+        TF_FORMAT_RESET;
+        printf("\n");
 
         // Print errors if there is any
         tf_linked_list_it err_it = tf_linked_list_iterator(&current_test->context->errors);
@@ -235,30 +271,37 @@ bool tf_manager_run_all_tests(tf_test_manager *manager)
             tf_error *current_error = err_it.value;
 
             // Convert the severity to string
-            const char *severity_str;
+            printf("\t- [");
             switch (current_error->severity)
             {
-                case ERROR: severity_str = TF_FORMAT_RED "Error" TF_FORMAT_RESET; break;
-                case WARNING: severity_str = TF_FORMAT_YELLOW "Warning" TF_FORMAT_RESET; break;
+                case TF_ERROR:
+                    TF_FORMAT_RED;
+                    printf("Error");
+                    break;
+                case TF_WARNING:
+                    TF_FORMAT_YELLOW;
+                    printf("Warning");
+                    break;
             }
+            TF_FORMAT_RESET;
 
-            printf("\t- [%s] %s:%llu\n\t%s\n", severity_str, current_error->file, current_error->line_number, current_error->message);
+            printf("] %s:%llu\n\t%s\n", current_error->file, current_error->line_number, current_error->message);
         }
     }
 
     // Print summary
     if (failed_counter == 0)
     {
-        printf("\n%s-> All tests passed successfully.%s\n", TF_FORMAT_BOLD_GREEN, TF_FORMAT_RESET);
+        TF_FORMAT_BOLD_GREEN;
+        printf("\n-> All tests passed successfully.\n");
+        TF_FORMAT_RESET;
         return true;
     }
     else
     {
-        printf("\n%s-> %llu/%llu tests failed. See the errors above.%s\n",
-               TF_FORMAT_BOLD_RED,
-               failed_counter,
-               manager->registered_tests.count,
-               TF_FORMAT_RESET);
+        TF_FORMAT_BOLD_RED;
+        printf("\n-> %llu/%llu tests failed. See the errors above.\n", failed_counter, manager->registered_tests.count);
+        TF_FORMAT_RESET;
         return false;
     }
 }
@@ -285,7 +328,7 @@ void tf_assert_common(tf_context *context, size_t line_number, const char *file,
     {
         // Save error in context
         tf_error error = {
-            .severity    = ERROR,
+            .severity    = TF_ERROR,
             .line_number = line_number,
             .file        = file,
             .message     = message,
@@ -329,6 +372,8 @@ void tf_register_test(const char *name, tf_test_function pfn_test)
 
 int tf_main(void)
 {
+    TF_INIT_FORMATTING;
+
     bool result = tf_manager_run_all_tests(&TF_MANAGER);
     tf_clear_manager(&TF_MANAGER);
 
