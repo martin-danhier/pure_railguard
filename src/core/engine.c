@@ -32,8 +32,7 @@ rg_engine *rg_create_engine(void)
     engine->renderer = rg_create_renderer(engine->window, "My wonderful game", (rg_version) {0, 1, 0}, 1);
 
     // Create swapchain for window
-    rg_surface surface = rg_get_window_surface(engine->renderer, engine->window);
-    rg_renderer_create_swapchain(engine->renderer, 0, surface, window_extent);
+    rg_renderer_create_swapchain(engine->renderer, 0, engine->window);
 
     return engine;
 }

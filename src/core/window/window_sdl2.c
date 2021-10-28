@@ -162,6 +162,10 @@ bool rg_window_handle_events(rg_window *window)
     return should_quit;
 }
 
+rg_extent_2d rg_window_get_current_extent(rg_window *window) {
+    return window->extent;
+}
+
 // Resize event
 
 bool rg_window_resize_event_subscribe(rg_window *window, const char *handler_name, rg_event_handler handler)

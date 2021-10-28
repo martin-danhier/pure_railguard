@@ -68,6 +68,9 @@ typedef struct rg_swapchain
     // Swapchain images
     uint32_t           image_count;
     VkSurfaceFormatKHR swapchain_image_format;
+    // Present mode
+    VkPresentModeKHR present_mode;
+    VkSurfaceTransformFlagBitsKHR transform;
     // All of these are arrays of image_count items:
     VkImage       *swapchain_images;
     VkImageView   *swapchain_image_views;
@@ -75,7 +78,11 @@ typedef struct rg_swapchain
     // Depth image
     VkFormat           depth_image_format;
     rg_allocated_image depth_image;
-
+    // Target window
+    rg_window   *target_window;
+    VkSurfaceKHR surface;
+    // Pointer to renderer so that we can go back to it from the swapchain
+    rg_renderer *renderer;
 } rg_swapchain;
 
 typedef struct rg_passes
@@ -95,8 +102,6 @@ typedef struct rg_renderer
     VmaAllocator     allocator;
     // TODO use a dynamic structure to be able to store a variable amount of surface for deletion
     // Maybe create a sub struct specialized to keep track of objects for deletion
-
-    VkSurfaceKHR surface;
 #ifdef USE_VK_VALIDATION_LAYERS
     VkDebugUtilsMessengerEXT debug_messenger;
 #endif
@@ -401,10 +406,15 @@ uint32_t rg_renderer_rate_physical_device(VkPhysicalDevice device)
 
 // region Window events handling
 
+// Forward declare functions we will need in handlers
+
+void rg_renderer_recreate_swapchain(rg_swapchain *swapchain, rg_extent_2d new_extent);
+
 // Callback called when the window is resized
-void rg_renderer_handle_window_resize_event(rg_window_resize_event_data *data, rg_renderer *renderer)
+void rg_renderer_handle_window_resize_event(rg_window_resize_event_data *data, rg_swapchain *swapchain)
 {
     // Recreate swap chain
+    rg_renderer_recreate_swapchain(swapchain, data->new_extent);
 }
 
 // endregion
@@ -575,7 +585,109 @@ void rg_renderer_destroy_image(VmaAllocator allocator, VkDevice device, rg_alloc
 
 // region Swapchain functions
 
-void rg_renderer_create_swapchain(rg_renderer *renderer, uint32_t swapchain_index, rg_surface surface, rg_extent_2d extent)
+void rg_init_swapchain_inner(rg_renderer *renderer, rg_swapchain *swapchain, rg_extent_2d extent) {
+
+    // region Swapchain creation
+
+    // Save extent
+    swapchain->viewport_extent = (VkExtent2D) {
+        .width  = extent.width,
+        .height = extent.height,
+        };
+
+    // Create the swapchain
+    VkSwapchainCreateInfoKHR swapchain_create_info = {
+        // Struct info
+        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        // Present options
+        .presentMode = swapchain->present_mode,
+        // Image options
+        .surface          = swapchain->surface,
+        .preTransform     = swapchain->transform,
+        .imageExtent      = swapchain->viewport_extent,
+        .imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .minImageCount    = swapchain->image_count,
+        .imageFormat      = swapchain->swapchain_image_format.format,
+        .imageColorSpace  = swapchain->swapchain_image_format.colorSpace,
+        .clipped          = VK_TRUE,
+        .compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        .imageArrayLayers = 1,
+        // For now, we use the same queue for rendering and presenting. Maybe in the future, we will want to change that.
+        .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        };
+    vk_check(vkCreateSwapchainKHR(renderer->device, &swapchain_create_info, NULL, &swapchain->vk_swapchain),
+             "Couldn't create swapchain.");
+
+    // endregion
+
+    // region Images and image views
+
+    // Get the images
+    uint32_t effective_image_count = 0;
+    vkGetSwapchainImagesKHR(renderer->device, swapchain->vk_swapchain, &effective_image_count, VK_NULL_HANDLE);
+    swapchain->swapchain_images = malloc(sizeof(VkImage) * effective_image_count);
+    vkGetSwapchainImagesKHR(renderer->device, swapchain->vk_swapchain, &effective_image_count, swapchain->swapchain_images);
+
+    // Update the image count based on how many were effectively created
+    swapchain->image_count = effective_image_count;
+
+    // Create image views for those images
+    VkImageViewCreateInfo image_view_create_info = {
+        // Struct info
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        // Image info
+        .format   = swapchain->swapchain_image_format.format,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .components =
+            {
+            .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+            .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+            },
+            .subresourceRange =
+                {
+            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel   = 0,
+            .levelCount     = 1,
+            .baseArrayLayer = 0,
+            .layerCount     = 1,
+            },
+            };
+
+    // Allocate memory for it
+    swapchain->swapchain_image_views = malloc(sizeof(VkImageView) * swapchain->image_count);
+
+    // Create the image views
+    for (uint32_t i = 0; i < swapchain->image_count; i++)
+    {
+        image_view_create_info.image = swapchain->swapchain_images[i];
+        vk_check(vkCreateImageView(renderer->device, &image_view_create_info, NULL, &swapchain->swapchain_image_views[i]),
+                 "Couldn't create image views for the swapchain images.");
+    }
+    // endregion
+
+    // region Depth image creation
+
+    VkExtent3D depth_image_extent = {
+        .width  = swapchain->viewport_extent.width,
+        .height = swapchain->viewport_extent.height,
+        .depth  = 1,
+        };
+    swapchain->depth_image_format = VK_FORMAT_D32_SFLOAT;
+
+    swapchain->depth_image = rg_renderer_create_image(renderer->allocator,
+                                                      renderer->device,
+                                                      swapchain->depth_image_format,
+                                                      depth_image_extent,
+                                                      VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                                                      VK_IMAGE_ASPECT_DEPTH_BIT,
+                                                      VMA_MEMORY_USAGE_GPU_ONLY);
+
+    // endregion
+}
+
+void rg_renderer_create_swapchain(rg_renderer *renderer, uint32_t swapchain_index, rg_window *window)
 {
     // Prevent access to the positions that are outside the swapchain array
     rg_renderer_check(swapchain_index < renderer->swapchains.count, "Swapchain index out of range.");
@@ -588,29 +700,39 @@ void rg_renderer_create_swapchain(rg_renderer *renderer, uint32_t swapchain_inde
                       "Attempted to create a swapchain in a slot where there was already an active one. To recreate a swapchain, see "
                       "rg_renderer_recreate_swapchain.");
 
+    // Save renderer to be able to access it from events
+    swapchain->renderer = renderer;
+
+    // region Window & Surface
+
+    // Get the window's surface
+    swapchain->target_window = window;
+    swapchain->surface       = rg_window_get_vulkan_surface(window, renderer->instance);
+
     // Check that the surface is supported
     VkBool32 surface_supported = false;
     vkGetPhysicalDeviceSurfaceSupportKHR(renderer->physical_device,
                                          renderer->graphics_queue.family_index,
-                                         (VkSurfaceKHR) surface,
+                                         swapchain->surface,
                                          &surface_supported);
     rg_renderer_check(surface_supported, "The chosen GPU is unable to render to the given surface.");
+
+    // endregion
 
     // region Present mode
 
     // Choose a present mode
     uint32_t available_present_modes_count = 0;
     vkGetPhysicalDeviceSurfacePresentModesKHR(renderer->physical_device,
-                                              (VkSurfaceKHR) surface,
+                                              swapchain->surface,
                                               &available_present_modes_count,
                                               VK_NULL_HANDLE);
     rg_array available_present_modes = rg_create_array(available_present_modes_count, sizeof(VkPresentModeKHR));
     vkGetPhysicalDeviceSurfacePresentModesKHR(renderer->physical_device,
-                                              (VkSurfaceKHR) surface,
+                                              swapchain->surface,
                                               &available_present_modes_count,
                                               available_present_modes.data);
 
-    VkPresentModeKHR chosen_present_mode = 0;
     bool             present_mode_found  = false;
 #define DESIRED_PRESENT_MODES_COUNT 2
     VkPresentModeKHR desired_present_modes[DESIRED_PRESENT_MODES_COUNT] = {
@@ -626,7 +748,7 @@ void rg_renderer_create_swapchain(rg_renderer *renderer, uint32_t swapchain_inde
             // Found a match ! Take it
             if (mode == desired_present_modes[j])
             {
-                chosen_present_mode = mode;
+                swapchain->present_mode = mode;
                 present_mode_found  = true;
             }
         }
@@ -640,8 +762,7 @@ void rg_renderer_create_swapchain(rg_renderer *renderer, uint32_t swapchain_inde
 
     // Check the surface capabilities
     VkSurfaceCapabilitiesKHR surface_capabilities = {};
-    vk_check(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(renderer->physical_device, (VkSurfaceKHR) surface, &surface_capabilities),
-             NULL);
+    vk_check(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(renderer->physical_device, swapchain->surface, &surface_capabilities), NULL);
 
     // For the image count, take the minimum plus one. Or, if the minimum is equal to the maximum, take that value.
     uint32_t image_count = surface_capabilities.minImageCount + 1;
@@ -650,6 +771,7 @@ void rg_renderer_create_swapchain(rg_renderer *renderer, uint32_t swapchain_inde
         image_count = surface_capabilities.maxImageCount;
     }
     swapchain->image_count = image_count;
+    swapchain->transform = surface_capabilities.currentTransform;
 
     // endregion
 
@@ -657,14 +779,12 @@ void rg_renderer_create_swapchain(rg_renderer *renderer, uint32_t swapchain_inde
 
     // Get the available formats
     uint32_t available_format_count = 0;
-    vk_check(vkGetPhysicalDeviceSurfaceFormatsKHR(renderer->physical_device,
-                                                  (VkSurfaceKHR) surface,
-                                                  &available_format_count,
-                                                  VK_NULL_HANDLE),
-             NULL);
+    vk_check(
+        vkGetPhysicalDeviceSurfaceFormatsKHR(renderer->physical_device, swapchain->surface, &available_format_count, VK_NULL_HANDLE),
+        NULL);
     rg_array available_formats = rg_create_array(available_format_count, sizeof(VkSurfaceFormatKHR));
     vk_check(vkGetPhysicalDeviceSurfaceFormatsKHR(renderer->physical_device,
-                                                  (VkSurfaceKHR) surface,
+                                                  swapchain->surface,
                                                   &available_format_count,
                                                   available_formats.data),
              NULL);
@@ -704,102 +824,22 @@ void rg_renderer_create_swapchain(rg_renderer *renderer, uint32_t swapchain_inde
 
     // endregion
 
-    // region Swapchain creation
+    // Get window extent
+    rg_extent_2d extent = rg_window_get_current_extent(window);
 
-    // Save extent
-    swapchain->viewport_extent = (VkExtent2D) {
-        .width  = extent.width,
-        .height = extent.height,
-    };
+    // Create the swapchain and the images
+    rg_init_swapchain_inner(renderer, swapchain, extent);
 
-    // Create the swapchain
-    VkSwapchainCreateInfoKHR swapchain_create_info = {
-        // Struct info
-        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-        // Present options
-        .presentMode = chosen_present_mode,
-        // Image options
-        .surface          = (VkSurfaceKHR) surface,
-        .preTransform     = surface_capabilities.currentTransform,
-        .imageExtent      = swapchain->viewport_extent,
-        .imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-        .minImageCount    = image_count,
-        .imageFormat      = swapchain->swapchain_image_format.format,
-        .imageColorSpace  = swapchain->swapchain_image_format.colorSpace,
-        .clipped          = VK_TRUE,
-        .compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-        .imageArrayLayers = 1,
-        // For now, we use the same queue for rendering and presenting. Maybe in the future, we will want to change that.
-        .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
-    };
-    vk_check(vkCreateSwapchainKHR(renderer->device, &swapchain_create_info, NULL, &swapchain->vk_swapchain),
-             "Couldn't create swapchain.");
+    // region Register to window events
 
-    // endregion
-
-    // region Images and image views
-
-    // Get the images
-    uint32_t effective_image_count = 0;
-    vkGetSwapchainImagesKHR(renderer->device, swapchain->vk_swapchain, &effective_image_count, VK_NULL_HANDLE);
-    swapchain->swapchain_images = malloc(sizeof(VkImage) * effective_image_count);
-    vkGetSwapchainImagesKHR(renderer->device, swapchain->vk_swapchain, &effective_image_count, swapchain->swapchain_images);
-
-    // Update the image count based on how many were effectively created
-    swapchain->image_count = effective_image_count;
-
-    // Create image views for those images
-    VkImageViewCreateInfo image_view_create_info = {
-        // Struct info
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        // Image info
-        .format   = swapchain->swapchain_image_format.format,
-        .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .components =
-            {
-                .r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                .a = VK_COMPONENT_SWIZZLE_IDENTITY,
-            },
-        .subresourceRange =
-            {
-                .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseMipLevel   = 0,
-                .levelCount     = 1,
-                .baseArrayLayer = 0,
-                .layerCount     = 1,
-            },
-    };
-
-    // Allocate memory for it
-    swapchain->swapchain_image_views = malloc(sizeof(VkImageView) * swapchain->image_count);
-
-    // Create the image views
-    for (uint32_t i = 0; i < swapchain->image_count; i++)
-    {
-        image_view_create_info.image = swapchain->swapchain_images[i];
-        vk_check(vkCreateImageView(renderer->device, &image_view_create_info, NULL, &swapchain->swapchain_image_views[i]),
-                 "Couldn't create image views for the swapchain images.");
-    }
-    // endregion
-
-    // region Depth image creation
-
-    VkExtent3D depth_image_extent = {
-        .width  = swapchain->viewport_extent.width,
-        .height = swapchain->viewport_extent.height,
-        .depth  = 1,
-    };
-    swapchain->depth_image_format = VK_FORMAT_D32_SFLOAT;
-
-    swapchain->depth_image = rg_renderer_create_image(renderer->allocator,
-                                                      renderer->device,
-                                                      swapchain->depth_image_format,
-                                                      depth_image_extent,
-                                                      VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                                                      VK_IMAGE_ASPECT_DEPTH_BIT,
-                                                      VMA_MEMORY_USAGE_GPU_ONLY);
+    rg_renderer_check(
+        rg_window_resize_event_subscribe(window,
+                                         EVENT_HANDLER_NAME,
+                                         (rg_event_handler) {
+                                             .pfn_handler = (rg_event_handler_function) rg_renderer_handle_window_resize_event,
+                                             .user_data   = swapchain,
+                                         }),
+        NULL);
 
     // endregion
 
@@ -807,19 +847,19 @@ void rg_renderer_create_swapchain(rg_renderer *renderer, uint32_t swapchain_inde
     swapchain->enabled = true;
 }
 
-void rg_renderer_recreate_swapchain(rg_renderer *renderer, uint32_t swapchain_index)
+void rg_destroy_swapchain_inner(rg_swapchain *swapchain)
 {
-    // Prevent access to the positions that are outside the swapchain array
-    rg_renderer_check(swapchain_index < renderer->swapchains.count, "Swapchain index out of range.");
-}
+    // Destroys a Vulkan Swapchain, but not everything in the rg_swapchain
+    // For example, the surface is not deleted
+    // The image arrays stay allocated
 
-void rg_destroy_swapchain(const rg_renderer *renderer, rg_swapchain *swapchain)
-{
+    rg_renderer *renderer = swapchain->renderer;
+
     // Destroy depth image
     rg_renderer_destroy_image(renderer->allocator, renderer->device, &swapchain->depth_image);
 
     // Destroy swapchain images
-    for (uint32_t i = 0; i < NB_OVERLAPPING_FRAMES; i++)
+    for (uint32_t i = 0; i < swapchain->image_count; i++)
     {
         // Delete the image views
         vkDestroyImageView(renderer->device, swapchain->swapchain_image_views[i], NULL);
@@ -827,18 +867,45 @@ void rg_destroy_swapchain(const rg_renderer *renderer, rg_swapchain *swapchain)
         // The deletion of the images is handled by the swapchain
     }
 
-    // Clean the arrays
-    free(swapchain->swapchain_image_views);
-    free(swapchain->swapchain_images);
-
     // Destroy swapchain itself
     vkDestroySwapchainKHR(renderer->device, swapchain->vk_swapchain, NULL);
     swapchain->vk_swapchain = VK_NULL_HANDLE;
+
+    // Clean the arrays
+    free(swapchain->swapchain_image_views);
+    free(swapchain->swapchain_images);
+}
+
+void rg_destroy_swapchain(rg_swapchain *swapchain)
+{
+    // Unregister window events
+    rg_window_resize_event_unsubscribe(swapchain->target_window, EVENT_HANDLER_NAME);
+
+    // Cleanup
+    rg_destroy_swapchain_inner(swapchain);
+
+    // Destroy the surface
+    vkDestroySurfaceKHR(swapchain->renderer->instance, swapchain->surface, NULL);
 
     // Disable it
     swapchain->enabled = false;
 }
 
+void rg_renderer_recreate_swapchain(rg_swapchain *swapchain, rg_extent_2d new_extent)
+{
+    // Ensure that there is a swapchain to recreate
+    rg_renderer_check(swapchain->enabled,
+                      "Attempted to recreate an nonexisting swapchain. "
+                      "Use rg_renderer_create_swapchain to create a new one instead.");
+
+    rg_renderer *renderer = swapchain->renderer;
+
+    // Destroy the old swapchain
+    rg_destroy_swapchain_inner(swapchain);
+
+    // Create the new swapchain
+    rg_init_swapchain_inner(renderer, swapchain, new_extent);
+}
 // endregion
 
 // region Renderer functions
@@ -1078,19 +1145,6 @@ rg_renderer *
     // enabled field, and it must be zero by default.
     renderer->swapchains = rg_create_array_zeroed(swapchain_capacity, sizeof(rg_swapchain));
 
-    // --=== Subscribe to window events ===--
-
-
-
-    rg_renderer_check(
-        rg_window_resize_event_subscribe(window,
-                                         EVENT_HANDLER_NAME,
-                                         (rg_event_handler) {
-                                             .pfn_handler = (rg_event_handler_function) rg_renderer_handle_window_resize_event,
-                                             .user_data = renderer,
-                                         }),
-        NULL);
-
     return renderer;
 }
 
@@ -1105,15 +1159,8 @@ void rg_destroy_renderer(rg_renderer **renderer, rg_window *window)
         rg_swapchain *swapchain = (*renderer)->swapchains.data + (i * sizeof(rg_swapchain));
         if (swapchain->enabled)
         {
-            rg_destroy_swapchain(*renderer, swapchain);
+            rg_destroy_swapchain(swapchain);
         }
-    }
-
-    // Destroy surface
-    // TODO later use a more complex structure to be able to keep track of more than one surface
-    if ((*renderer)->surface != VK_NULL_HANDLE)
-    {
-        vkDestroySurfaceKHR((*renderer)->instance, (VkSurfaceKHR) (*renderer)->surface, NULL);
     }
 
     // Destroy allocator
@@ -1135,15 +1182,6 @@ void rg_destroy_renderer(rg_renderer **renderer, rg_window *window)
     // Since we took a double pointer in parameter, we can also set it to null
     // Thus, the user doesn't have to do it themselves
     *renderer = NULL;
-}
-
-rg_surface rg_get_window_surface(rg_renderer *renderer, rg_window *window)
-{
-    // A VulkanSurfaceKHR is actually a pointer
-    // But the caller doesn't know that
-    // He just handles a pointer to something, labeled as rg_surface
-    renderer->surface = rg_window_get_vulkan_surface(window, renderer->instance);
-    return renderer->surface;
 }
 
 // endregion

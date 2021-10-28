@@ -42,6 +42,9 @@ double rg_window_compute_delta_time(rg_window *window, uint64_t *current_frame_t
 
 bool rg_window_handle_events(rg_window *window);
 
+// Getters
+rg_extent_2d rg_window_get_current_extent(rg_window *window);
+
 // Events
 bool rg_window_resize_event_subscribe(rg_window *window, const char* handler_name, rg_event_handler handler);
 void rg_window_resize_event_unsubscribe(rg_window *window, const char* handler_name);
@@ -51,6 +54,5 @@ rg_array rg_window_get_required_vulkan_extensions(rg_window *window, unsigned in
 
 typedef struct VkInstance_T   *VkInstance;
 typedef struct VkSurfaceKHR_T *VkSurfaceKHR;
-
 VkSurfaceKHR rg_window_get_vulkan_surface(rg_window *window, VkInstance vulkan_instance);
 #endif
