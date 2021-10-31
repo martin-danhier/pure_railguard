@@ -69,7 +69,7 @@ typedef struct rg_swapchain
     uint32_t           image_count;
     VkSurfaceFormatKHR swapchain_image_format;
     // Present mode
-    VkPresentModeKHR present_mode;
+    VkPresentModeKHR              present_mode;
     VkSurfaceTransformFlagBitsKHR transform;
     // All of these are arrays of image_count items:
     VkImage       *swapchain_images;
@@ -100,8 +100,7 @@ typedef struct rg_renderer
     VkPhysicalDevice physical_device;
     rg_queue         graphics_queue;
     VmaAllocator     allocator;
-    // TODO use a dynamic structure to be able to store a variable amount of surface for deletion
-    // Maybe create a sub struct specialized to keep track of objects for deletion
+    rg_passes        passes;
 #ifdef USE_VK_VALIDATION_LAYERS
     VkDebugUtilsMessengerEXT debug_messenger;
 #endif
@@ -404,6 +403,60 @@ uint32_t rg_renderer_rate_physical_device(VkPhysicalDevice device)
 }
 // endregion
 
+// region Format functions
+
+VkSurfaceFormatKHR rg_select_surface_format(rg_renderer *renderer, rg_window *window)
+{
+    // Get surface
+    VkSurfaceKHR       surface        = rg_window_get_vulkan_surface(window, renderer->instance);
+    VkSurfaceFormatKHR surface_format = {};
+
+    // Get the available formats
+    uint32_t available_format_count = 0;
+    vk_check(vkGetPhysicalDeviceSurfaceFormatsKHR(renderer->physical_device, surface, &available_format_count, VK_NULL_HANDLE), NULL);
+    rg_array available_formats = rg_create_array(available_format_count, sizeof(VkSurfaceFormatKHR));
+    vk_check(vkGetPhysicalDeviceSurfaceFormatsKHR(renderer->physical_device, surface, &available_format_count, available_formats.data),
+             NULL);
+
+    // Desired formats, by order of preference
+#define DESIRED_FORMAT_COUNT 2
+    const VkSurfaceFormatKHR desired_formats[DESIRED_FORMAT_COUNT] = {
+        {
+            VK_FORMAT_B8G8R8A8_SRGB,
+            VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+        },
+        {
+            VK_FORMAT_R8G8B8A8_SRGB,
+            VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+        },
+    };
+
+    // Get the first desired format available
+    bool found = false;
+    for (uint32_t i = 0; i < available_format_count && !found; i++)
+    {
+        VkSurfaceFormatKHR *available_format = available_formats.data + (i * sizeof(VkSurfaceFormatKHR));
+
+        for (uint32_t j = 0; j < DESIRED_FORMAT_COUNT && !found; j++)
+        {
+            if (available_format->format == desired_formats[j].format && available_format->colorSpace == desired_formats[j].colorSpace)
+            {
+                surface_format = desired_formats[j];
+                found          = true;
+            }
+        }
+    }
+    rg_renderer_check(found, "Couldn't find an appropriate format for the surface.");
+
+    // Cleanup format selection
+    rg_destroy_array(&available_formats);
+    vkDestroySurfaceKHR(renderer->instance, surface, NULL);
+
+    return surface_format;
+}
+
+// endregion
+
 // region Window events handling
 
 // Forward declare functions we will need in handlers
@@ -585,15 +638,15 @@ void rg_renderer_destroy_image(VmaAllocator allocator, VkDevice device, rg_alloc
 
 // region Swapchain functions
 
-void rg_init_swapchain_inner(rg_renderer *renderer, rg_swapchain *swapchain, rg_extent_2d extent) {
-
+void rg_init_swapchain_inner(rg_renderer *renderer, rg_swapchain *swapchain, rg_extent_2d extent)
+{
     // region Swapchain creation
 
     // Save extent
     swapchain->viewport_extent = (VkExtent2D) {
         .width  = extent.width,
         .height = extent.height,
-        };
+    };
 
     // Create the swapchain
     VkSwapchainCreateInfoKHR swapchain_create_info = {
@@ -614,7 +667,7 @@ void rg_init_swapchain_inner(rg_renderer *renderer, rg_swapchain *swapchain, rg_
         .imageArrayLayers = 1,
         // For now, we use the same queue for rendering and presenting. Maybe in the future, we will want to change that.
         .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        };
+    };
     vk_check(vkCreateSwapchainKHR(renderer->device, &swapchain_create_info, NULL, &swapchain->vk_swapchain),
              "Couldn't create swapchain.");
 
@@ -640,20 +693,20 @@ void rg_init_swapchain_inner(rg_renderer *renderer, rg_swapchain *swapchain, rg_
         .viewType = VK_IMAGE_VIEW_TYPE_2D,
         .components =
             {
-            .r = VK_COMPONENT_SWIZZLE_IDENTITY,
-            .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-            .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-            .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+                .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                .a = VK_COMPONENT_SWIZZLE_IDENTITY,
             },
-            .subresourceRange =
-                {
-            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-            .baseMipLevel   = 0,
-            .levelCount     = 1,
-            .baseArrayLayer = 0,
-            .layerCount     = 1,
+        .subresourceRange =
+            {
+                .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel   = 0,
+                .levelCount     = 1,
+                .baseArrayLayer = 0,
+                .layerCount     = 1,
             },
-            };
+    };
 
     // Allocate memory for it
     swapchain->swapchain_image_views = malloc(sizeof(VkImageView) * swapchain->image_count);
@@ -673,7 +726,7 @@ void rg_init_swapchain_inner(rg_renderer *renderer, rg_swapchain *swapchain, rg_
         .width  = swapchain->viewport_extent.width,
         .height = swapchain->viewport_extent.height,
         .depth  = 1,
-        };
+    };
     swapchain->depth_image_format = VK_FORMAT_D32_SFLOAT;
 
     swapchain->depth_image = rg_renderer_create_image(renderer->allocator,
@@ -683,6 +736,28 @@ void rg_init_swapchain_inner(rg_renderer *renderer, rg_swapchain *swapchain, rg_
                                                       VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
                                                       VK_IMAGE_ASPECT_DEPTH_BIT,
                                                       VMA_MEMORY_USAGE_GPU_ONLY);
+
+    // endregion
+
+    // region Framebuffers creation
+
+    swapchain->swapchain_image_framebuffers = malloc(sizeof(VkFramebuffer) * swapchain->image_count);
+
+    VkFramebufferCreateInfo framebuffer_create_info = {
+        .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+        .renderPass      = renderer->passes.lighting_pass,
+        .attachmentCount = 1,
+        .width           = extent.width,
+        .height          = extent.height,
+        .layers          = 1,
+    };
+
+    for (uint32_t i = 0; i < swapchain->image_count; i++)
+    {
+        framebuffer_create_info.pAttachments = &swapchain->swapchain_image_views[i];
+        vk_check(vkCreateFramebuffer(renderer->device, &framebuffer_create_info, NULL, &swapchain->swapchain_image_framebuffers[i]),
+                 "Couldn't create framebuffers for the swapchain images.");
+    }
 
     // endregion
 }
@@ -733,7 +808,7 @@ void rg_renderer_create_swapchain(rg_renderer *renderer, uint32_t swapchain_inde
                                               &available_present_modes_count,
                                               available_present_modes.data);
 
-    bool             present_mode_found  = false;
+    bool present_mode_found = false;
 #define DESIRED_PRESENT_MODES_COUNT 2
     VkPresentModeKHR desired_present_modes[DESIRED_PRESENT_MODES_COUNT] = {
         VK_PRESENT_MODE_MAILBOX_KHR,
@@ -749,7 +824,7 @@ void rg_renderer_create_swapchain(rg_renderer *renderer, uint32_t swapchain_inde
             if (mode == desired_present_modes[j])
             {
                 swapchain->present_mode = mode;
-                present_mode_found  = true;
+                present_mode_found      = true;
             }
         }
     }
@@ -771,58 +846,11 @@ void rg_renderer_create_swapchain(rg_renderer *renderer, uint32_t swapchain_inde
         image_count = surface_capabilities.maxImageCount;
     }
     swapchain->image_count = image_count;
-    swapchain->transform = surface_capabilities.currentTransform;
+    swapchain->transform   = surface_capabilities.currentTransform;
 
     // endregion
 
-    // region Format selection
-
-    // Get the available formats
-    uint32_t available_format_count = 0;
-    vk_check(
-        vkGetPhysicalDeviceSurfaceFormatsKHR(renderer->physical_device, swapchain->surface, &available_format_count, VK_NULL_HANDLE),
-        NULL);
-    rg_array available_formats = rg_create_array(available_format_count, sizeof(VkSurfaceFormatKHR));
-    vk_check(vkGetPhysicalDeviceSurfaceFormatsKHR(renderer->physical_device,
-                                                  swapchain->surface,
-                                                  &available_format_count,
-                                                  available_formats.data),
-             NULL);
-
-    // Desired formats, by order of preference
-#define DESIRED_FORMAT_COUNT 2
-    const VkSurfaceFormatKHR desired_formats[DESIRED_FORMAT_COUNT] = {
-        {
-            VK_FORMAT_B8G8R8A8_SRGB,
-            VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-        },
-        {
-            VK_FORMAT_R8G8B8A8_SRGB,
-            VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-        },
-    };
-
-    // Get the first desired format available
-    bool found = false;
-    for (uint32_t i = 0; i < available_format_count && !found; i++)
-    {
-        VkSurfaceFormatKHR *available_format = available_formats.data + (i * sizeof(VkSurfaceFormatKHR));
-
-        for (uint32_t j = 0; j < DESIRED_FORMAT_COUNT && !found; j++)
-        {
-            if (available_format->format == desired_formats[j].format && available_format->colorSpace == desired_formats[j].colorSpace)
-            {
-                swapchain->swapchain_image_format = desired_formats[j];
-                found                             = true;
-            }
-        }
-    }
-    rg_renderer_check(found, "Couldn't find an appropriate format for the surface.");
-
-    // Cleanup format selection
-    rg_destroy_array(&available_formats);
-
-    // endregion
+    swapchain->swapchain_image_format = rg_select_surface_format(renderer, window);
 
     // Get window extent
     rg_extent_2d extent = rg_window_get_current_extent(window);
@@ -854,6 +882,12 @@ void rg_destroy_swapchain_inner(rg_swapchain *swapchain)
     // The image arrays stay allocated
 
     rg_renderer *renderer = swapchain->renderer;
+
+    // Destroy the framebuffers
+    for (uint32_t i = 0; i < swapchain->image_count; i++)
+    {
+        vkDestroyFramebuffer(renderer->device, swapchain->swapchain_image_framebuffers[i], NULL);
+    }
 
     // Destroy depth image
     rg_renderer_destroy_image(renderer->allocator, renderer->device, &swapchain->depth_image);
@@ -1145,14 +1179,103 @@ rg_renderer *
     // enabled field, and it must be zero by default.
     renderer->swapchains = rg_create_array_zeroed(swapchain_capacity, sizeof(rg_swapchain));
 
+    // --=== Render passes ===--
+
+    // region Render passes creation
+
+    // Choose a swapchain_image_format for the given example window
+    // For now we will assume that all swapchain will use that swapchain_image_format
+    VkSurfaceFormatKHR swapchain_image_format = rg_select_surface_format(renderer, window);
+
+    // Create geometric render pass
+
+    VkAttachmentReference   attachment_references[3] = {};
+    VkAttachmentDescription attachments[3]           = {};
+
+    // Position color buffer
+    attachments[0] = (VkAttachmentDescription) {
+        // Operators
+        .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
+        .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        // Layout
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout   = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        // No MSAA
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        // Format. We need high precision for position
+        .format = VK_FORMAT_R16G16B16A16_SFLOAT,
+    };
+    attachment_references[0] = (VkAttachmentReference) {
+        .attachment = 0,
+        .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    };
+    // Normal color buffer. Same format as position
+    attachments[1]           = attachments[0];
+    attachment_references[1] = (VkAttachmentReference) {
+        .attachment = 1,
+        .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    };
+    // Color + specular buffers
+    attachments[2]           = attachments[0];
+    attachments[2].format    = VK_FORMAT_R8G8B8A8_UINT;
+    attachment_references[2] = (VkAttachmentReference) {
+        .attachment = 2,
+        .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    };
+    // Group attachments in an array
+    VkSubpassDescription subpass_description = {
+        .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+        // Color attachments
+        .colorAttachmentCount = 3,
+        .pColorAttachments    = attachment_references,
+    };
+    VkRenderPassCreateInfo render_pass_create_info = {
+        .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+        .pNext           = VK_NULL_HANDLE,
+        .attachmentCount = 3,
+        .pAttachments    = attachments,
+        .subpassCount    = 1,
+        .pSubpasses      = &subpass_description,
+    };
+    vk_check(vkCreateRenderPass(renderer->device, &render_pass_create_info, NULL, &renderer->passes.geometry_pass),
+             "Couldn't create geometry render pass");
+
+    // Create lighting render pass
+    VkAttachmentDescription lighting_attachment = {
+        // Operators
+        .loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR,
+        .storeOp        = VK_ATTACHMENT_STORE_OP_STORE,
+        .stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+        .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+        // Layout
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .finalLayout   = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        // No MSAA
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        // Format. We need high precision for position
+        .format = swapchain_image_format.format,
+    };
+    VkAttachmentReference lighting_attachment_reference = {
+        .attachment = 0,
+        .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    };
+    subpass_description.colorAttachmentCount = 1;
+    subpass_description.pColorAttachments    = &lighting_attachment_reference;
+    render_pass_create_info.attachmentCount = 1;
+    render_pass_create_info.pAttachments    = &lighting_attachment;
+    vk_check(vkCreateRenderPass(renderer->device, &render_pass_create_info, NULL, &renderer->passes.lighting_pass),
+             "Couldn't create lighting render pass");
+
+    // endregion
+
+
     return renderer;
 }
 
 void rg_destroy_renderer(rg_renderer **renderer, rg_window *window)
 {
-    // Unsubscribe from window events
-    rg_window_resize_event_unsubscribe(window, EVENT_HANDLER_NAME);
-
     // Destroy swapchains
     for (uint32_t i = 0; i < (*renderer)->swapchains.count; i++)
     {
@@ -1162,6 +1285,10 @@ void rg_destroy_renderer(rg_renderer **renderer, rg_window *window)
             rg_destroy_swapchain(swapchain);
         }
     }
+
+    // Destroy render passes
+    vkDestroyRenderPass((*renderer)->device, (*renderer)->passes.geometry_pass, NULL);
+    vkDestroyRenderPass((*renderer)->device, (*renderer)->passes.lighting_pass, NULL);
 
     // Destroy allocator
     rg_renderer_destroy_allocator(&(*renderer)->allocator);
