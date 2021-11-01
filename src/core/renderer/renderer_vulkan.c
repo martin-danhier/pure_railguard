@@ -13,11 +13,10 @@
 #include <volk.h>
 // Needs to be after volk
 #include <vk_mem_alloc.h>
-
-#ifdef USE_VK_VALIDATION_LAYERS
-
 #include <railguard/utils/io.h>
 #include <railguard/utils/maps.h>
+
+#ifdef USE_VK_VALIDATION_LAYERS
 
 #include <string.h>
 
