@@ -33,10 +33,16 @@ bool rg_load_file_binary(const char *file_name, void **data, size_t *size)
     }
 
     // Read file
-    fread(*data, *size, 1, file);
+    size_t read_count = fread(*data, *size, 1, file);
 
     // Close file
     fclose(file);
+
+    // Handle result
+    if (read_count != 1)
+    {
+        return false;
+    }
 
     return true;
 }
