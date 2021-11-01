@@ -123,7 +123,8 @@ target_link_libraries(unit_tests PUBLIC railguard_lib)
 target_compile_definitions(unit_tests PUBLIC UNIT_TESTS)
 
 # Copy resource files in the build directory
-file(COPY ${test_resources} DESTINATION bin/resources)
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/resources/shaders)
+file(COPY ${test_resources} DESTINATION ${CMAKE_BINARY_DIR}/resources)
 
 
 ##################################################################
@@ -154,14 +155,12 @@ if (DEFINED RENDERER_VULKAN)
             "${PROJECT_SOURCE_DIR}/resources/shaders/*.comp"
             )
 
-    # Create directory "bin/resources/shaders"
-    file(MAKE_DIRECTORY "${PROJECT_SOURCE_DIR}/bin/resources/shaders")
 
     # iterate each shader
     foreach(glsl ${glsl_source_files})
         message(STATUS "Building shader")
         get_filename_component(file_name ${glsl} NAME)
-        set(spirv "${PROJECT_SOURCE_DIR}/bin/resources/shaders/${file_name}.spv")
+        set(spirv "${CMAKE_BINARY_DIR}/resources/shaders/${file_name}.spv")
         message(STATUS ${glsl})
 
         # execute glslang command to compile that specific shader
