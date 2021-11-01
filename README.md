@@ -1,5 +1,7 @@
 # Railguard Engine
 
+[![Tests](https://github.com/martin-danhier/pure_railguard/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/martin-danhier/pure_railguard/actions/workflows/tests.yml)
+
 ## Setup development environment
 
 ### Summary
