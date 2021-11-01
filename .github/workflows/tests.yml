@@ -31,14 +31,13 @@ jobs:
       uses: humbletim/setup-vulkan-sdk@v1.0.3
       
     - name: Setup glslangValidator
-      working-directory: ${{github.workspace}}/glslangValidator
+      working-directory: ${{github.workspace}}
       run: |
+        mkdir glslangValidator
+        cd glslangValidator
         wget https://github.com/KhronosGroup/glslang/releases/download/master-tot/glslang-master-linux-Release.zip
-        echo 1
         unzip ./glslang-master-linux-Release.zip -d .
-        echo 2
         rm ./glslang-master-linux-Release.zip
-        echo 3
       
     - name: Setup SDL2
       # You may pin to the exact commit or the version.
