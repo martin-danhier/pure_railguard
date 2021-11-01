@@ -32,7 +32,10 @@ jobs:
       
     - name: Setup glslangValidator
       working-directory: ${{github.workspace}}/glslangValidator
-      run: https://github.com/KhronosGroup/glslang/releases/download/master-tot/glslang-master-linux-Release.zip && unzip glslang-master-linux-Release.zip -d . && rm glslang-master-linux-Release.zip
+      run: |
+        wget https://github.com/KhronosGroup/glslang/releases/download/master-tot/glslang-master-linux-Release.zip
+        unzip glslang-master-linux-Release.zip -d .
+        rm glslang-master-linux-Release.zip
       
     - name: Setup SDL2
       # You may pin to the exact commit or the version.
