@@ -141,9 +141,11 @@ file(COPY ${test_resources} DESTINATION bin/resources)
 if (DEFINED RENDERER_VULKAN)
 
     find_program(glsl_validator glslangValidator HINTS
-            /usr/bin /usr/local/bin
+            /usr/bin
+            /usr/local/bin
             $ENV{VULKAN_SDK}/Bin/
             $ENV{VULKAN_SDK}/Bin32/
+            ${PROJECT_SOURCE_DIR}/glslangValidator/bin/ # For GitHub Actions
             )
     # find all the shader files under the shaders folder
     file(GLOB_RECURSE glsl_source_files
