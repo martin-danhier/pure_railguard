@@ -16,6 +16,9 @@
 
 #ifdef USE_VK_VALIDATION_LAYERS
 
+#include <railguard/utils/io.h>
+#include <railguard/utils/maps.h>
+
 #include <string.h>
 
 #endif
@@ -109,7 +112,9 @@ typedef struct rg_renderer
      * We place them in a array to be able to efficiently iterate through them. And because their number won't change, we can safely
      * send pointers to individual swapchains around.
      */
-    rg_array swapchains;
+    rg_array     swapchains;
+    rg_hash_map *shaders;
+
 } rg_renderer;
 
 // endregion
@@ -762,13 +767,13 @@ void rg_init_swapchain_inner(rg_renderer *renderer, rg_swapchain *swapchain, rg_
     // endregion
 }
 
-void rg_renderer_create_swapchain(rg_renderer *renderer, uint32_t swapchain_index, rg_window *window)
+void rg_renderer_add_window(rg_renderer *renderer, uint32_t window_index, rg_window *window)
 {
     // Prevent access to the positions that are outside the swapchain array
-    rg_renderer_check(swapchain_index < renderer->swapchains.count, "Swapchain index out of range.");
+    rg_renderer_check(window_index < renderer->swapchains.count, "Swapchain index out of range.");
 
     // Get the swapchain in the renderer
-    rg_swapchain *swapchain = renderer->swapchains.data + (swapchain_index * sizeof(rg_swapchain));
+    rg_swapchain *swapchain = renderer->swapchains.data + (window_index * sizeof(rg_swapchain));
 
     // Ensure that there is not a live swapchain here already
     rg_renderer_check(!swapchain->enabled,
@@ -930,7 +935,7 @@ void rg_renderer_recreate_swapchain(rg_swapchain *swapchain, rg_extent_2d new_ex
     // Ensure that there is a swapchain to recreate
     rg_renderer_check(swapchain->enabled,
                       "Attempted to recreate an nonexisting swapchain. "
-                      "Use rg_renderer_create_swapchain to create a new one instead.");
+                      "Use rg_renderer_add_window to create a new one instead.");
 
     rg_renderer *renderer = swapchain->renderer;
 
@@ -942,10 +947,86 @@ void rg_renderer_recreate_swapchain(rg_swapchain *swapchain, rg_extent_2d new_ex
 }
 // endregion
 
+// endregion
+
+// region Shaders functions
+
+void rg_renderer_load_shader(rg_renderer *renderer, const char *shader_name, const char *shader_path)
+{
+    // Load binary from file
+    uint32_t *code      = NULL;
+    size_t    code_size = 0;
+    rg_renderer_check(rg_load_file_binary(shader_path, (void **) &code, &code_size), "Couldn't load shader binary");
+
+    // Create shader module
+    VkShaderModuleCreateInfo shader_module_create_info = {
+        .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .pNext    = NULL,
+        .codeSize = code_size,
+        .pCode    = code,
+        };
+    VkShaderModule module = VK_NULL_HANDLE;
+    vk_check(vkCreateShaderModule(renderer->device, &shader_module_create_info, NULL, &module), "Couldn't create shader module");
+
+    // Save it in map
+    rg_renderer_check(rg_hash_map_set(renderer->shaders, shader_name, (rg_hash_map_value_t) (void *) module),
+                      "Couldn't save shader module");
+
+    printf("Loaded shader \"%s\"\n", shader_name);
+}
+
+void rg_renderer_destroy_shader(rg_renderer *renderer, const char *shader_name)
+{
+    // Get shader module
+    rg_hash_map_get_result get_result = rg_hash_map_get(renderer->shaders, shader_name);
+    if (get_result.exists)
+    {
+        // Destroy shader module
+        vkDestroyShaderModule(renderer->device, (VkShaderModule) get_result.value.as_ptr, NULL);
+
+        // Remove from map
+        rg_hash_map_erase(renderer->shaders, shader_name);
+    }
+}
+
+void rg_renderer_clear_shaders(rg_renderer *renderer)
+{
+    if (renderer->shaders != NULL)
+    {
+        // Destroy all shader modules
+        rg_hash_map_it it = rg_hash_map_iterator(renderer->shaders);
+        while (rg_hash_map_next(&it))
+        {
+            vkDestroyShaderModule(renderer->device, (VkShaderModule) it.value.as_ptr, NULL);
+        }
+
+        // Destroy map
+        rg_destroy_hash_map(&renderer->shaders);
+    }
+}
+
+VkShaderModule rg_renderer_get_shader(rg_renderer *renderer, const char* shader_name)
+{
+    // Get shader module
+    rg_hash_map_get_result get_result = rg_hash_map_get(renderer->shaders, shader_name);
+    if (get_result.exists)
+    {
+        return (VkShaderModule) get_result.value.as_ptr;
+    }
+    else
+    {
+        return VK_NULL_HANDLE;
+    }
+}
+
+// endregion
+
 // region Renderer functions
 
-rg_renderer *
-    rg_create_renderer(rg_window *window, const char *application_name, rg_version application_version, uint32_t swapchain_capacity)
+rg_renderer *rg_create_renderer(rg_window  *example_window,
+                                const char *application_name,
+                                rg_version  application_version,
+                                uint32_t    window_capacity)
 {
     // Create a renderer in the heap
     // This is done to keep the renderer opaque in the header
@@ -970,7 +1051,7 @@ rg_renderer *
 #endif
 
     // Get the extensions that the window manager needs
-    rg_array required_extensions = rg_window_get_required_vulkan_extensions(window, extra_extension_count);
+    rg_array required_extensions = rg_window_get_required_vulkan_extensions(example_window, extra_extension_count);
 
     // Add other extensions in the extra slots
     uint32_t extra_ext_index = required_extensions.count - extra_extension_count;
@@ -1177,7 +1258,7 @@ rg_renderer *
     // We need to create an array big enough to hold all the swapchains.
     // Use the zeroed variant because we do not initialize it, and we want it clean because to destroy the renderer, we check the
     // enabled field, and it must be zero by default.
-    renderer->swapchains = rg_create_array_zeroed(swapchain_capacity, sizeof(rg_swapchain));
+    renderer->swapchains = rg_create_array_zeroed(window_capacity, sizeof(rg_swapchain));
 
     // --=== Render passes ===--
 
@@ -1185,7 +1266,7 @@ rg_renderer *
 
     // Choose a swapchain_image_format for the given example window
     // For now we will assume that all swapchain will use that swapchain_image_format
-    VkSurfaceFormatKHR swapchain_image_format = rg_select_surface_format(renderer, window);
+    VkSurfaceFormatKHR swapchain_image_format = rg_select_surface_format(renderer, example_window);
 
     // Create geometric render pass
 
@@ -1263,19 +1344,26 @@ rg_renderer *
     };
     subpass_description.colorAttachmentCount = 1;
     subpass_description.pColorAttachments    = &lighting_attachment_reference;
-    render_pass_create_info.attachmentCount = 1;
-    render_pass_create_info.pAttachments    = &lighting_attachment;
+    render_pass_create_info.attachmentCount  = 1;
+    render_pass_create_info.pAttachments     = &lighting_attachment;
     vk_check(vkCreateRenderPass(renderer->device, &render_pass_create_info, NULL, &renderer->passes.lighting_pass),
              "Couldn't create lighting render pass");
 
     // endregion
 
+    // --=== Init various storages ===--
+
+    // Init shaders map
+    renderer->shaders = rg_create_hash_map();
 
     return renderer;
 }
 
 void rg_destroy_renderer(rg_renderer **renderer, rg_window *window)
 {
+    // Clear shaders
+    rg_renderer_clear_shaders(*renderer);
+
     // Destroy swapchains
     for (uint32_t i = 0; i < (*renderer)->swapchains.count; i++)
     {
@@ -1311,6 +1399,5 @@ void rg_destroy_renderer(rg_renderer **renderer, rg_window *window)
     *renderer = NULL;
 }
 
-// endregion
 
 #endif
