@@ -34,13 +34,14 @@ endif ()
 ##################################################################
 
 set(sources
-        "src/core/renderer/renderer_vulkan.c"
-        "src/core/window/window_sdl2.c"
-        "src/core/engine.c"
-        "src/utils/arrays.c"
-        "src/utils/io.c"
-        "src/utils/maps.c"
-        "src/utils/event_sender.c"
+        src/core/renderer/renderer_vulkan.c
+        src/core/window/window_sdl2.c
+        src/core/engine.c
+        src/utils/arrays.c
+        src/utils/io.c
+        src/utils/maps.c
+        src/utils/event_sender.c
+        src/utils/storage.c
         )
 
 set(test_resources
@@ -53,7 +54,7 @@ add_executable(railguard)
 target_sources(railguard PRIVATE src/main.c)
 
 # Set main project as a lib that will be used in the main executable and in tests
-add_library(railguard_lib STATIC)
+add_library(railguard_lib STATIC ${sources})
 target_sources(railguard_lib PRIVATE ${sources})
 
 # Add include directory to allow includes with <> pair

@@ -58,6 +58,11 @@ typedef struct rg_struct_map_it
     rg_struct_map *struct_map;
 } rg_struct_map_it;
 
+/**
+ * @brief Creates a new struct map.
+ * @param value_size The size of the structs that will be stored in the map.
+ * @return the created map, or NULL if an error occurred.
+ */
 rg_struct_map *rg_create_struct_map(size_t value_size);
 void           rg_destroy_struct_map(rg_struct_map **p_struct_map);
 /**
