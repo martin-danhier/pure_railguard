@@ -12,14 +12,14 @@
 
 // --=== Constants ===--
 
-#define FNV_OFFSET 14695981039346656037UL
-#define FNV_PRIME  1099511628211UL
+#define FNV_OFFSET 14695981039346656037ULL
+#define FNV_PRIME  1099511628211ULL
 
 // --=== Types ===--
 
 typedef struct rg_hash_map_entry
 {
-    const char         *key;
+    rg_hash_map_key_t   key;
     rg_hash_map_value_t value;
 } rg_hash_map_entry;
 
@@ -32,28 +32,39 @@ typedef struct rg_hash_map
 
 // --=== Utils functions ===--
 
-// https://en.wikipedia.org/wiki/Fowler–Noll–Vo_hash_function
-uint64_t hash_key(const char *key)
+// FNV hash of key
+// Related wiki page: https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
+uint64_t hash_key(uint64_t key)
 {
     uint64_t hash = FNV_OFFSET;
-    for (const char *p = key; *p; p++)
+    for (size_t i = 0; i < sizeof(key); i++)
     {
-        hash ^= (uint64_t) (unsigned char) (*p);
+        hash ^= ((uint8_t *) &key)[i];
         hash *= FNV_PRIME;
     }
     return hash;
 }
 
-bool rg_hash_map_set_entry(rg_hash_map_entry *entries, size_t capacity, const char *key, rg_hash_map_value_t value, size_t *count)
+bool rg_hash_map_set_entry(rg_hash_map_entry  *entries,
+                           size_t              capacity,
+                           rg_hash_map_key_t   key,
+                           rg_hash_map_value_t value,
+                           size_t             *count)
 {
+    // Prevent the use of the zero key, which is reserved for the empty entry
+    if (key == RG_HASH_MAP_NULL_KEY)
+    {
+        return false;
+    }
+
     // Compute the index of the key in the array
     size_t index = (size_t) (hash_key(key) & ((uint64_t) capacity - 1));
 
-    while (entries[index].key != NULL)
+    while (entries[index].key != RG_HASH_MAP_NULL_KEY)
     {
         // If the slot is not empty, but the key is the same
         // We want to edit that slot
-        if (strcmp(key, entries[index].key) == 0)
+        if (entries[index].key == key)
         {
             // Edit value
             entries[index].value = value;
@@ -76,15 +87,10 @@ bool rg_hash_map_set_entry(rg_hash_map_entry *entries, size_t capacity, const ch
 
     if (count != NULL)
     {
-        key = strdup(key);
-        if (key == NULL)
-        {
-            return false;
-        }
         (*count)++;
     }
 
-    entries[index].key   = (char *) key;
+    entries[index].key   = key;
     entries[index].value = value;
     return true;
 }
@@ -108,7 +114,7 @@ bool rg_hash_map_expand(rg_hash_map *hash_map)
     for (size_t i = 0; i < hash_map->capacity; i++)
     {
         rg_hash_map_entry entry = hash_map->data[i];
-        if (entry.key != NULL)
+        if (entry.key != RG_HASH_MAP_NULL_KEY)
         {
             rg_hash_map_set_entry(new_entries, new_capacity, entry.key, entry.value, NULL);
         }
@@ -164,16 +170,22 @@ void rg_destroy_hash_map(rg_hash_map **p_hash_map)
     *p_hash_map = NULL;
 }
 
-rg_hash_map_get_result rg_hash_map_get(rg_hash_map *hash_map, const char *key)
+rg_hash_map_get_result rg_hash_map_get(rg_hash_map *hash_map, rg_hash_map_key_t key)
 {
+    // Directly filter invalid keys
+    if (key == RG_HASH_MAP_NULL_KEY)
+    {
+        return (rg_hash_map_get_result) {.exists = false};
+    }
+
     // Compute the index of the key in the array
     size_t index = (size_t) (hash_key(key) & ((uint64_t) hash_map->capacity - 1));
 
     // Search for the value in the location, until we find an empty slot
-    while (hash_map->data[index].key != NULL)
+    while (hash_map->data[index].key != RG_HASH_MAP_NULL_KEY)
     {
         // If the key is the same, we found the good slot !
-        if (strcmp(key, hash_map->data[index].key) == 0)
+        if (key == hash_map->data[index].key)
         {
             return (rg_hash_map_get_result) {
                 .value  = hash_map->data[index].value,
@@ -193,7 +205,7 @@ rg_hash_map_get_result rg_hash_map_get(rg_hash_map *hash_map, const char *key)
     };
 }
 
-bool rg_hash_map_set(rg_hash_map *hash_map, const char *key, rg_hash_map_value_t value)
+bool rg_hash_map_set(rg_hash_map *hash_map, rg_hash_map_key_t key, rg_hash_map_value_t value)
 {
     // Expand the capacity of the array if it is more than half full
     if (hash_map->count >= hash_map->capacity / 2)
@@ -231,7 +243,7 @@ bool rg_hash_map_next(rg_hash_map_it *it)
         it->current_index++;
 
         // If the slot is not empty, use it
-        if (map->data[i].key != NULL)
+        if (map->data[i].key != RG_HASH_MAP_NULL_KEY)
         {
             it->key   = map->data[i].key;
             it->value = map->data[i].value;
@@ -243,20 +255,20 @@ bool rg_hash_map_next(rg_hash_map_it *it)
     return false;
 }
 
-void rg_hash_map_erase(rg_hash_map *hash_map, const char *key)
+void rg_hash_map_erase(rg_hash_map *hash_map, rg_hash_map_key_t key)
 {
     // Compute the index of the key in the array
     size_t index = (size_t) (hash_key(key) & ((uint64_t) hash_map->capacity - 1));
 
     // Search for the slot near the pointed index, until an empty slot is found.
-    while (hash_map->data[index].key != NULL)
+    while (hash_map->data[index].key != RG_HASH_MAP_NULL_KEY)
     {
         // We found the slot to remove if the key is the same
-        if (strcmp(key, hash_map->data[index].key) == 0)
+        if (key == hash_map->data[index].key)
         {
             // Set key and value to null
             hash_map->data[index].value.as_ptr = NULL;
-            hash_map->data[index].key          = NULL;
+            hash_map->data[index].key          = RG_HASH_MAP_NULL_KEY;
             hash_map->count -= 1;
             return;
         }
@@ -292,9 +304,9 @@ typedef struct rg_struct_map
 
 // --=== Utils functions ===--
 
-const char *rg_struct_map_get_key_of_storage_element(rg_struct_map *struct_map, void *p_storage_element)
+rg_hash_map_key_t rg_struct_map_get_key_of_storage_element(rg_struct_map *struct_map, void *p_storage_element)
 {
-    return *(const char **) (p_storage_element + struct_map->value_size);
+    return *(rg_hash_map_key_t *) (p_storage_element + struct_map->value_size);
 }
 
 // --=== Functions ===--
@@ -351,10 +363,10 @@ size_t rg_struct_map_count(rg_struct_map *struct_map)
     return struct_map->hash_map.count;
 }
 
-void *rg_struct_map_get(rg_struct_map *p_struct_map, const char *p_key)
+void *rg_struct_map_get(rg_struct_map *p_struct_map, rg_hash_map_key_t key)
 {
     // Check if there is already a value there in the map
-    rg_hash_map_get_result get_result = rg_hash_map_get(&p_struct_map->hash_map, p_key);
+    rg_hash_map_get_result get_result = rg_hash_map_get(&p_struct_map->hash_map, key);
 
     if (get_result.exists)
     {
@@ -364,18 +376,18 @@ void *rg_struct_map_get(rg_struct_map *p_struct_map, const char *p_key)
     return NULL;
 }
 
-bool rg_struct_map_exists(rg_struct_map *struct_map, const char *p_key)
+bool rg_struct_map_exists(rg_struct_map *struct_map, rg_hash_map_key_t key)
 {
     // Check if there is already a value there in the map
     // No need to get the element from the storage
-    rg_hash_map_get_result get_result = rg_hash_map_get(&struct_map->hash_map, p_key);
+    rg_hash_map_get_result get_result = rg_hash_map_get(&struct_map->hash_map, key);
     return get_result.exists;
 }
 
-void *rg_struct_map_set(rg_struct_map *p_struct_map, const char *p_key, void *p_data)
+void *rg_struct_map_set(rg_struct_map *p_struct_map, rg_hash_map_key_t key, void *p_data)
 {
     // Check if there is already a value there in the map
-    rg_hash_map_get_result get_result = rg_hash_map_get(&p_struct_map->hash_map, p_key);
+    rg_hash_map_get_result get_result = rg_hash_map_get(&p_struct_map->hash_map, key);
 
     void *p_data_in_storage = NULL;
 
@@ -383,7 +395,8 @@ void *rg_struct_map_set(rg_struct_map *p_struct_map, const char *p_key, void *p_
     {
         // There is a value: there is a place in the storage we can modify.
         p_data_in_storage = rg_vector_get_element(&p_struct_map->storage, get_result.value.as_num);
-        if (p_data_in_storage != NULL) {
+        if (p_data_in_storage != NULL)
+        {
             return memcpy(p_data_in_storage, p_data, p_struct_map->value_size);
         }
         // We don't need to update the map nor the key since it points to a valid storage element.
@@ -399,16 +412,14 @@ void *rg_struct_map_set(rg_struct_map *p_struct_map, const char *p_key, void *p_
             bool success = true;
             // Store value
             success = memcpy(p_data_in_storage, p_data, p_struct_map->value_size) != NULL;
-            // Store key
             if (success)
             {
-                success = memcpy(p_data_in_storage + p_struct_map->value_size, &p_key, sizeof(const char *)) != NULL;
-            }
-            // Update hash map
-            if (success)
-            {
+                // Store key
+                *(rg_hash_map_key_t *) (p_data_in_storage + p_struct_map->value_size) = key;
+
+                // Update hash map
                 success = rg_hash_map_set(&p_struct_map->hash_map,
-                                          p_key,
+                                          key,
                                           (rg_hash_map_value_t) {
                                               .as_num = rg_vector_last_index(&p_struct_map->storage),
                                           });
@@ -426,7 +437,7 @@ void *rg_struct_map_set(rg_struct_map *p_struct_map, const char *p_key, void *p_
     return p_data_in_storage;
 }
 
-void rg_struct_map_erase(rg_struct_map *struct_map, const char *key)
+void rg_struct_map_erase(rg_struct_map *struct_map, rg_hash_map_key_t key)
 {
     // Look up the element
     rg_hash_map_get_result get_result = rg_hash_map_get(&struct_map->hash_map, key);
@@ -450,7 +461,7 @@ void rg_struct_map_erase(rg_struct_map *struct_map, const char *key)
                 void *p_updated_slot = rg_vector_get_element(&struct_map->storage, deleted_slot_index);
                 if (p_updated_slot != NULL)
                 {
-                    const char *last_elements_key = rg_struct_map_get_key_of_storage_element(struct_map, p_updated_slot);
+                    rg_hash_map_key_t last_elements_key = rg_struct_map_get_key_of_storage_element(struct_map, p_updated_slot);
                     success                       = rg_hash_map_set(&struct_map->hash_map,
                                                                     last_elements_key,
                                                                     (rg_hash_map_value_t) {.as_num = deleted_slot_index});
@@ -492,7 +503,7 @@ bool rg_struct_map_next(rg_struct_map_it *it)
     }
 
     it->value = NULL;
-    it->key = NULL;
+    it->key   = RG_HASH_MAP_NULL_KEY;
     return false;
 }
 

@@ -1,7 +1,9 @@
 #pragma once
 
-#include <stddef.h>
+#include <railguard/utils/maps.h>
+
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 // --=== Constants ===--
@@ -11,12 +13,12 @@
 // --=== Types ===--
 
 /**
- * A storage is a data structure with the following properties:
- * - New elements can be pushed in the storage, which returns a new unique id for the element
- * - Using the id, the element can be read, updated or deleted
- * - The allocation of the data is handled by the storage (data is copied inside it from the pointer when pushed)
- * - Inside the storage, the data is kept tightly packed, even if elements are deleted
- * - With an iterator, it is possible to read all the elements in the storage
+ * A storage is a data structure with the following properties:\n
+ * • New elements can be pushed in the storage, which returns a new unique id for the element\n
+ * • Using the id, the element can be read, updated or deleted\n
+ * • The allocation of the data is handled by the storage (data is copied inside it from the pointer when pushed)\n
+ * • Inside the storage, the data is kept tightly packed, even if elements are deleted\n
+ * • With an iterator, it is possible to read all the elements in the storage
  */
 typedef struct rg_storage rg_storage;
 
@@ -24,9 +26,9 @@ typedef uint32_t rg_storage_id;
 
 typedef struct rg_storage_it
 {
-    rg_storage   *storage;
-    rg_storage_id id;
-    void         *value;
+    rg_struct_map_it map_it;
+    rg_storage_id    id;
+    void            *value;
 } rg_storage_it;
 
 // --=== Functions ===--
@@ -50,3 +52,4 @@ void          rg_storage_erase(rg_storage *storage, rg_storage_id id);
 rg_storage_it rg_storage_iterator(rg_storage *storage);
 bool          rg_storage_next(rg_storage_it *it);
 size_t        rg_storage_count(rg_storage *storage);
+bool          rg_storage_exists(rg_storage *storage, rg_storage_id id);

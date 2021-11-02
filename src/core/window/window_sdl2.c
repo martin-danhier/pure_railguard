@@ -168,13 +168,13 @@ rg_extent_2d rg_window_get_current_extent(rg_window *window) {
 
 // Resize event
 
-bool rg_window_resize_event_subscribe(rg_window *window, const char *handler_name, rg_event_handler handler)
+rg_event_handler_id rg_window_resize_event_subscribe(rg_window *window, rg_event_handler handler)
 {
-    return rg_event_sender_register_listener(window->resize_event, handler_name, handler);
+    return rg_event_sender_register_listener(window->resize_event, handler);
 }
 
-void rg_window_resize_event_unsubscribe(rg_window *window, const char* handler_name) {
-    rg_event_sender_unregister_listener(window->resize_event, handler_name);
+void rg_window_resize_event_unsubscribe(rg_window *window, rg_event_handler_id handler_id) {
+    rg_event_sender_unregister_listener(window->resize_event, handler_id);
 }
 
 #ifdef RENDERER_VULKAN

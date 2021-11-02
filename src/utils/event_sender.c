@@ -1,7 +1,7 @@
  #include "railguard/utils/event_sender.h"
 
  #include <railguard/utils/arrays.h>
- #include <railguard/utils/maps.h>
+ #include <railguard/utils/storage.h>
 
  #include <stdlib.h>
 
@@ -9,7 +9,7 @@
 
  typedef struct rg_event_sender
  {
-     rg_struct_map *handlers_lookup_map;
+     rg_storage *handlers;
  } rg_event_sender;
 
  // --=== Event Sender ===--
@@ -23,8 +23,8 @@
      }
 
      // Create handlers_lookup_map hash map
-     sender->handlers_lookup_map = rg_create_struct_map(sizeof(rg_event_handler));
-     if (sender->handlers_lookup_map == NULL) {
+     sender->handlers = rg_create_storage(sizeof(rg_event_handler));
+     if (sender->handlers == NULL) {
          free(sender);
          return NULL;
      }
@@ -34,38 +34,47 @@
 
  void rg_destroy_event_sender(rg_event_sender **event_sender)
  {
-     // Destroy the handlers_lookup_map map
-     rg_destroy_struct_map(&(*event_sender)->handlers_lookup_map);
+     if (event_sender == NULL || *event_sender == NULL) {
+         return;
+     }
+
+     // Destroy the handlers storage
+     rg_destroy_storage(&(*event_sender)->handlers);
 
      // Free the sender itself
      free(*event_sender);
      *event_sender = NULL;
  }
 
- bool rg_event_sender_register_listener(rg_event_sender *event_sender, const char* handler_name, rg_event_handler handler)
+ rg_event_handler_id rg_event_sender_register_listener(rg_event_sender *event_sender, rg_event_handler handler)
  {
-     // Check if the name is already taken
-     if (rg_struct_map_exists(event_sender->handlers_lookup_map, handler_name)) {
-         // In that case, we refuse to add the listener.
-         return false;
+     if (event_sender == NULL) {
+         return RG_EVENT_HANDLER_NULL_ID;
      }
 
-     // Otherwise, add it to the map
-     return rg_struct_map_set(event_sender->handlers_lookup_map, handler_name, &handler);
+     // Save handler
+     return rg_storage_push(event_sender->handlers, &handler);
  }
 
- void rg_event_sender_unregister_listener(rg_event_sender *event_sender, const char *handler_name)
+ void rg_event_sender_unregister_listener(rg_event_sender *event_sender, rg_event_handler_id handler_name)
  {
-     // Simply erase the name from the map
-     rg_struct_map_erase(event_sender->handlers_lookup_map, handler_name);
- }
+     if (event_sender == NULL) {
+         return;
+     }
 
+     // Simply erase the name from the storage
+     rg_storage_erase(event_sender->handlers, handler_name);
+ }
 
  void rg_event_sender_send_event(rg_event_sender *event_sender, void *data)
  {
-     rg_struct_map_it it = rg_struct_map_iterator(event_sender->handlers_lookup_map);
+     if (event_sender == NULL) {
+         return;
+     }
+
+     rg_storage_it it = rg_storage_iterator(event_sender->handlers);
      // Call the handlers_lookup_map with the data
-     while (rg_struct_map_next(&it)) {
+     while (rg_storage_next(&it)) {
          rg_event_handler *handler = it.value;
          handler->pfn_handler(data, handler->user_data);
      }

@@ -12,9 +12,10 @@
 #include <string.h>
 #include <volk.h>
 // Needs to be after volk
-#include <vk_mem_alloc.h>
 #include <railguard/utils/io.h>
 #include <railguard/utils/maps.h>
+
+#include <vk_mem_alloc.h>
 
 #ifdef USE_VK_VALIDATION_LAYERS
 
@@ -81,8 +82,9 @@ typedef struct rg_swapchain
     VkFormat           depth_image_format;
     rg_allocated_image depth_image;
     // Target window
-    rg_window   *target_window;
-    VkSurfaceKHR surface;
+    rg_window          *target_window;
+    rg_event_handler_id window_resize_event_handler_id;
+    VkSurfaceKHR        surface;
     // Pointer to renderer so that we can go back to it from the swapchain
     rg_renderer *renderer;
 } rg_swapchain;
@@ -864,14 +866,14 @@ void rg_renderer_add_window(rg_renderer *renderer, uint32_t window_index, rg_win
 
     // region Register to window events
 
-    rg_renderer_check(
+    swapchain->window_resize_event_handler_id =
         rg_window_resize_event_subscribe(window,
-                                         EVENT_HANDLER_NAME,
                                          (rg_event_handler) {
                                              .pfn_handler = (rg_event_handler_function) rg_renderer_handle_window_resize_event,
                                              .user_data   = swapchain,
                                          }),
-        NULL);
+    rg_renderer_check(swapchain->window_resize_event_handler_id != RG_EVENT_HANDLER_NULL_ID,
+                      "Couldn't subscribe to window resize events.");
 
     // endregion
 
@@ -917,7 +919,7 @@ void rg_destroy_swapchain_inner(rg_swapchain *swapchain)
 void rg_destroy_swapchain(rg_swapchain *swapchain)
 {
     // Unregister window events
-    rg_window_resize_event_unsubscribe(swapchain->target_window, EVENT_HANDLER_NAME);
+    rg_window_resize_event_unsubscribe(swapchain->target_window, swapchain->window_resize_event_handler_id);
 
     // Cleanup
     rg_destroy_swapchain_inner(swapchain);
@@ -963,7 +965,7 @@ void rg_renderer_load_shader(rg_renderer *renderer, const char *shader_name, con
         .pNext    = NULL,
         .codeSize = code_size,
         .pCode    = code,
-        };
+    };
     VkShaderModule module = VK_NULL_HANDLE;
     vk_check(vkCreateShaderModule(renderer->device, &shader_module_create_info, NULL, &module), "Couldn't create shader module");
 
@@ -1004,7 +1006,7 @@ void rg_renderer_clear_shaders(rg_renderer *renderer)
     }
 }
 
-VkShaderModule rg_renderer_get_shader(rg_renderer *renderer, const char* shader_name)
+VkShaderModule rg_renderer_get_shader(rg_renderer *renderer, const char *shader_name)
 {
     // Get shader module
     rg_hash_map_get_result get_result = rg_hash_map_get(renderer->shaders, shader_name);
@@ -1397,6 +1399,5 @@ void rg_destroy_renderer(rg_renderer **renderer, rg_window *window)
     // Thus, the user doesn't have to do it themselves
     *renderer = NULL;
 }
-
 
 #endif

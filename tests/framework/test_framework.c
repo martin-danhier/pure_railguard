@@ -161,7 +161,7 @@ tf_linked_list_it tf_linked_list_iterator(tf_linked_list *linked_list)
     };
 }
 
-bool tf_error_list_next(tf_linked_list_it *it)
+bool tf_linked_list_next(tf_linked_list_it *it)
 {
     if (it->current != NULL)
     {
@@ -232,9 +232,22 @@ bool tf_manager_run_all_tests(tf_test_manager *manager)
 
     printf("Starting testing for %llu tests...\n\n", manager->registered_tests.count);
 
-    // For each test
+    // Determine the maximum length of the test name, to align the print
+    size_t max_length = 0;
     tf_linked_list_it it = tf_linked_list_iterator(&manager->registered_tests);
-    while (tf_error_list_next(&it))
+    while (tf_linked_list_next(&it))
+    {
+        tf_test *test = it.value;
+        size_t  length = strlen(test->name);
+        if (length > max_length)
+        {
+            max_length = length;
+        }
+    }
+
+    // For each test
+    it = tf_linked_list_iterator(&manager->registered_tests);
+    while (tf_linked_list_next(&it))
     {
         tf_test *current_test = it.value;
 
@@ -249,7 +262,13 @@ bool tf_manager_run_all_tests(tf_test_manager *manager)
         current_test->pfn_test(current_test->context);
 
         // Print result
-        printf("\t ---> ");
+        // Add spaces to align the test name
+        for (size_t i = 0; i < max_length - strlen(current_test->name); i++)
+        {
+            printf(" ");
+        }
+
+        printf("     ---> ");
         if (current_test->context->errors.count == 0)
         {
             TF_FORMAT_BOLD_GREEN;
@@ -266,7 +285,7 @@ bool tf_manager_run_all_tests(tf_test_manager *manager)
 
         // Print errors if there is any
         tf_linked_list_it err_it = tf_linked_list_iterator(&current_test->context->errors);
-        while (tf_error_list_next(&err_it))
+        while (tf_linked_list_next(&err_it))
         {
             tf_error *current_error = err_it.value;
 
@@ -310,7 +329,7 @@ void tf_clear_manager(tf_test_manager *manager)
 {
     // Destroy the contexts
     tf_linked_list_it it = tf_linked_list_iterator(&manager->registered_tests);
-    while (tf_error_list_next(&it))
+    while (tf_linked_list_next(&it))
     {
         tf_test *current_test = it.value;
         tf_delete_context(current_test->context);
@@ -322,7 +341,7 @@ void tf_clear_manager(tf_test_manager *manager)
 
 // Asserts
 
-void tf_assert_common(tf_context *context, size_t line_number, const char *file, bool condition, const char *message)
+bool tf_assert_common(tf_context *context, size_t line_number, const char *file, bool condition, const char *message, bool recoverable)
 {
     if (condition != true)
     {
@@ -334,27 +353,55 @@ void tf_assert_common(tf_context *context, size_t line_number, const char *file,
             .message     = message,
         };
         tf_context_add_error(context, &error);
+
+        // Return a bool telling it the execution can continue
+        return recoverable;
     }
+    return true;
 }
 
-void tf_assert_true(tf_context *context, size_t line_number, const char *file, bool condition)
+bool tf_assert_true(tf_context *context, size_t line_number, const char *file, bool condition, bool recoverable)
 {
-    tf_assert_common(context, line_number, file, condition, "Assertion failed. Expected [true], got [false].");
+    return tf_assert_common(context,
+                            line_number,
+                            file,
+                            condition,
+                            recoverable ? "Condition failed. Expected [true], got [false]."
+                                        : "Assertion failed. Expected [true], got [false]. Unable to continue execution.",
+                            recoverable);
 }
 
-void tf_assert_false(tf_context *context, size_t line_number, const char *file, bool condition)
+bool tf_assert_false(tf_context *context, size_t line_number, const char *file, bool condition, bool recoverable)
 {
-    tf_assert_common(context, line_number, file, !condition, "Assertion failed. Expected [false], got [true].");
+    return tf_assert_common(context,
+                            line_number,
+                            file,
+                            !condition,
+                            recoverable ? "Condition failed. Expected [true], got [false]."
+                                        : "Assertion failed. Expected [true], got [false]. Unable to continue execution.",
+                            recoverable);
 }
 
-void tf_assert_not_null(tf_context *context, size_t line_number, const char *file, void *pointer)
+bool tf_assert_not_null(tf_context *context, size_t line_number, const char *file, void *pointer, bool recoverable)
 {
-    tf_assert_common(context, line_number, file, pointer != NULL, "Assertion failed. Got [NULL], expected something else.");
+    return tf_assert_common(context,
+                            line_number,
+                            file,
+                            pointer != NULL,
+                            recoverable ? "Condition failed. Got [NULL], expected something else."
+                                        : "Assertion failed. Got [NULL], expected something else. Unable to continue execution.",
+                            recoverable);
 }
 
-void tf_assert_null(tf_context *context, size_t line_number, const char *file, void *pointer)
+bool tf_assert_null(tf_context *context, size_t line_number, const char *file, void *pointer, bool recoverable)
 {
-    tf_assert_common(context, line_number, file, pointer == NULL, "Assertion failed. Expected [NULL], got something else.");
+    return tf_assert_common(context,
+                            line_number,
+                            file,
+                            pointer == NULL,
+                            recoverable ? "Condition failed. Got [NULL], expected something else."
+                                        : "Assertion failed. Got [NULL], expected something else. Unable to continue execution.",
+                            recoverable);
 }
 // Global
 

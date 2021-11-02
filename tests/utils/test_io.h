@@ -8,7 +8,7 @@
 #define TEST_TEXT_CONTENT "This is a file containing test text."
 #define TEST_TEXT_SIZE 36
 
-TEST(IO) {
+TEST(FileIO) {
     // Test reading a file
     char *contents = NULL;
     size_t length = 0;
@@ -19,9 +19,9 @@ TEST(IO) {
     memcpy(contents_str, contents, length);
     contents_str[length] = '\0';
 
-    ASSERT_TRUE(result);
-    ASSERT_TRUE(strcmp(contents_str, TEST_TEXT_CONTENT) == 0);
-    ASSERT_TRUE(length == TEST_TEXT_SIZE);
+    EXPECT_TRUE(result);
+    EXPECT_TRUE(strcmp(contents_str, TEST_TEXT_CONTENT) == 0);
+    EXPECT_TRUE(length == TEST_TEXT_SIZE);
 
     // Free memory
     free(contents);
@@ -31,5 +31,5 @@ TEST(IO) {
 
     // A nonexisting file returns false
     result = rg_load_file_binary("resources/nonexisting.txt", (void **) &contents, &length);
-    ASSERT_FALSE(result);
+    EXPECT_FALSE(result);
 }
