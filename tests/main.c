@@ -7,6 +7,7 @@
 #include "utils/test_io.h"
 #include "utils/test_storage.h"
 #include "utils/test_event_sender.h"
+#include "core/window.h"
 
 // Entry point for the tests
 int main(void)

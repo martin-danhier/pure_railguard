@@ -14,21 +14,21 @@ TEST(StructMap)
 {
     // Creation
     rg_struct_map *struct_map = rg_create_struct_map(sizeof(rg_test_struct_map_data));
-    EXPECT_NOT_NULL(struct_map);
+    ASSERT_NOT_NULL(struct_map);
 
     EXPECT_TRUE(rg_struct_map_count(struct_map) == 0);
 
     // Populate it
     rg_test_struct_map_data  data        = {.number = 42, .pos = {7, -9.5, 2}};
     rg_test_struct_map_data *key1_in_map = rg_struct_map_set(struct_map, 1, &data);
-    EXPECT_NOT_NULL(key1_in_map);
+    ASSERT_NOT_NULL(key1_in_map);
     EXPECT_TRUE(rg_struct_map_count(struct_map) == 1);
 
     // Update data and save another
     data.number                          = 89;
     data.pos[0]                          = 78;
     rg_test_struct_map_data *key2_in_map = rg_struct_map_set(struct_map, 2, &data);
-    EXPECT_NOT_NULL(key2_in_map);
+    ASSERT_NOT_NULL(key2_in_map);
     EXPECT_TRUE(rg_struct_map_count(struct_map) == 2);
     EXPECT_TRUE(key1_in_map != key2_in_map);
 
@@ -70,7 +70,7 @@ TEST(StructMap)
     data.pos[0] = -8888888.55;
     data.pos[2] = 99;
     rg_test_struct_map_data *other_key_in_map = rg_struct_map_set(struct_map, 987654, &data);
-    EXPECT_NOT_NULL(other_key_in_map);
+    ASSERT_NOT_NULL(other_key_in_map);
     EXPECT_TRUE(rg_struct_map_count(struct_map) == 2);
     // The slot that was used before for key2 should now be reused
     EXPECT_TRUE(other_key_in_map == key2_in_map);
@@ -85,7 +85,7 @@ TEST(StructMap)
     data.pos[1] = 30.42;
     data.pos[2] = 3.141592;
     rg_test_struct_map_data *key3_in_map = rg_struct_map_set(struct_map, 3, &data);
-    EXPECT_NOT_NULL(key3_in_map);
+    ASSERT_NOT_NULL(key3_in_map);
     EXPECT_TRUE(rg_struct_map_count(struct_map) == 3);
 
     data = (rg_test_struct_map_data) {};
@@ -94,15 +94,15 @@ TEST(StructMap)
     // However, since we exceeded the capacity of the storage vector, it got moved somewhere else
     // We need to get the pointers again
     rg_test_struct_map_data *new_key2_in_map = rg_struct_map_get(struct_map, 2);
-    EXPECT_NOT_NULL(new_key2_in_map);
-    EXPECT_TRUE(key1_in_map == new_key2_in_map);
+    ASSERT_NOT_NULL(new_key2_in_map);
+    EXPECT_TRUE(key1_in_map != new_key2_in_map);
     EXPECT_TRUE(new_key2_in_map->number == 89);
     EXPECT_TRUE(new_key2_in_map->pos[0] == 78);
     EXPECT_TRUE(new_key2_in_map->pos[1] == -9.5);
     EXPECT_TRUE(new_key2_in_map->pos[2] == 2);
 
     rg_test_struct_map_data *new_key3_in_map = rg_struct_map_get(struct_map, 3);
-    EXPECT_NOT_NULL(new_key3_in_map);
+    ASSERT_NOT_NULL(new_key3_in_map);
     // Key 3 is the same, since it was added after the reallocation
     EXPECT_TRUE(key3_in_map == new_key3_in_map);
     EXPECT_TRUE(key3_in_map->number == 542);
@@ -111,8 +111,8 @@ TEST(StructMap)
     EXPECT_TRUE(key3_in_map->pos[2] == 3.141592);
 
     rg_test_struct_map_data *new_other_key_in_map = rg_struct_map_get(struct_map, 987654);
-    EXPECT_NOT_NULL(new_other_key_in_map);
-    EXPECT_TRUE(other_key_in_map == new_other_key_in_map);
+    ASSERT_NOT_NULL(new_other_key_in_map);
+    EXPECT_TRUE(other_key_in_map != new_other_key_in_map);
     EXPECT_TRUE(new_other_key_in_map->number == 789);
     EXPECT_TRUE(new_other_key_in_map->pos[0] == -8888888.55);
     EXPECT_TRUE(new_other_key_in_map->pos[1] == 88);
