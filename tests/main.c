@@ -8,6 +8,7 @@
 #include "utils/test_storage.h"
 #include "utils/test_event_sender.h"
 #include "core/window.h"
+#include "utils/test_string.h"
 
 // Entry point for the tests
 int main(void)

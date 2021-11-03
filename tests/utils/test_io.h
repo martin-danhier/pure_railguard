@@ -12,7 +12,7 @@ TEST(FileIO) {
     // Test reading a file
     char *contents = NULL;
     size_t length = 0;
-    bool result = rg_load_file_binary("resources/test.txt", (void **) &contents, &length);
+    bool result = rg_load_file_binary(RG_CSTR_CONST("resources/test.txt"), (void **) &contents, &length);
 
     // Add null char because strcmp needs it, and it is not loaded by the function since we are in binary mode
     char *contents_str = malloc(length + 1);
@@ -30,6 +30,6 @@ TEST(FileIO) {
     contents_str = NULL;
 
     // A nonexisting file returns false
-    result = rg_load_file_binary("resources/nonexisting.txt", (void **) &contents, &length);
+    result = rg_load_file_binary(RG_CSTR_CONST("resources/nonexisting.txt"), (void **) &contents, &length);
     EXPECT_FALSE(result);
 }

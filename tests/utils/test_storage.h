@@ -142,3 +142,52 @@ TEST(Storage)
     rg_destroy_storage(&storage);
     EXPECT_NULL(storage);
 }
+
+TEST(HandleStorage) {
+    // Create storage
+    rg_handle_storage *storage = rg_create_handle_storage();
+    ASSERT_NOT_NULL(storage);
+
+    // Add data
+    rg_storage_id id1 = rg_handle_storage_push(storage, (void *) 0xDEADBEEF);
+    EXPECT_TRUE(id1 != RG_STORAGE_NULL_ID);
+    EXPECT_TRUE(rg_handle_storage_count(storage) == 1);
+
+    // Get data
+    rg_handle_storage_get_result get_result = rg_handle_storage_get(storage, id1);
+    ASSERT_TRUE(get_result.exists);
+    EXPECT_TRUE(get_result.value == (void *) 0xDEADBEEF);
+
+    // Add more data
+    rg_storage_id id2 = rg_handle_storage_push(storage, (void *) 0xCAFEBABE);
+    EXPECT_TRUE(id2 != RG_STORAGE_NULL_ID);
+    EXPECT_TRUE(rg_handle_storage_count(storage) == 2);
+
+    // Get data
+    get_result = rg_handle_storage_get(storage, id2);
+    ASSERT_TRUE(get_result.exists);
+    EXPECT_TRUE(get_result.value == (void *) 0xCAFEBABE);
+
+    // Try to get data that does not exist
+    rg_handle_storage_get_result get_result2 = rg_handle_storage_get(storage, 0xDEADBEEF);
+    EXPECT_FALSE(get_result2.exists);
+    EXPECT_NULL(get_result2.value);
+
+    // Try to remove data
+    rg_handle_storage_erase(storage, id1);
+    EXPECT_TRUE(rg_handle_storage_count(storage) == 1);
+
+    // Try to get the initial value again
+    get_result = rg_handle_storage_get(storage, id1);
+    EXPECT_FALSE(get_result.exists);
+    EXPECT_NULL(get_result.value);
+
+    // Try to remove data that does not exist
+    rg_handle_storage_erase(storage, 0xDEADBEEF);
+    EXPECT_TRUE(rg_handle_storage_count(storage) == 1);
+
+    // Clean up
+    rg_destroy_handle_storage(&storage);
+    EXPECT_NULL(storage);
+
+}

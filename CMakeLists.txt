@@ -42,6 +42,7 @@ set(sources
         src/utils/maps.c
         src/utils/event_sender.c
         src/utils/storage.c
+        src/utils/string.c
         )
 
 set(test_resources

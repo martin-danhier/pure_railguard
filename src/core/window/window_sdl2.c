@@ -62,6 +62,11 @@ rg_window *rg_create_window(rg_extent_2d extent, const char *title)
 
     // Init event senders
     window->resize_event = rg_create_event_sender();
+    if (window->resize_event == NULL)
+    {
+        free(window);
+        return NULL;
+    }
 
     // Save other info
     window->extent = extent;

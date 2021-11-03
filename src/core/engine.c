@@ -35,7 +35,7 @@ rg_engine *rg_create_engine(void)
     rg_renderer_add_window(engine->renderer, 0, engine->window);
 
     // Load shaders
-    rg_renderer_load_shader(engine->renderer, "gbuffer.vert", "resources/shaders/gbuffer.vert.spv");
+    rg_renderer_load_shader(engine->renderer, RG_CSTR_CONST("resources/shaders/gbuffer.vert.spv"));
 
     return engine;
 }

@@ -19,7 +19,7 @@
 
 #ifdef USE_VK_VALIDATION_LAYERS
 
-#include <string.h>
+#include <railguard/utils/storage.h>
 
 #endif
 
@@ -30,8 +30,6 @@
 /// \brief Number of frames that can be rendered at the same time. Set to 2 for double buffering, or 3 for triple buffering.
 #define NB_OVERLAPPING_FRAMES 3
 #define VULKAN_API_VERSION    VK_API_VERSION_1_1
-/** Key used for the event handlers_lookup_map */
-#define EVENT_HANDLER_NAME "renderer"
 
 // endregion
 
@@ -114,7 +112,7 @@ typedef struct rg_renderer
      * send pointers to individual swapchains around.
      */
     rg_array     swapchains;
-    rg_hash_map *shaders;
+    rg_handle_storage *shaders;
 
 } rg_renderer;
 
@@ -378,7 +376,6 @@ uint32_t rg_renderer_rate_physical_device(VkPhysicalDevice device)
     VkPhysicalDeviceFeatures   device_features;
     vkGetPhysicalDeviceProperties(device, &device_properties);
     vkGetPhysicalDeviceFeatures(device, &device_features);
-    const char *name = device_properties.deviceName;
 
     // Prefer discrete gpu when available
     if (device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
@@ -952,7 +949,7 @@ void rg_renderer_recreate_swapchain(rg_swapchain *swapchain, rg_extent_2d new_ex
 
 // region Shaders functions
 
-void rg_renderer_load_shader(rg_renderer *renderer, const char *shader_name, const char *shader_path)
+rg_shader_id rg_renderer_load_shader(rg_renderer *renderer, rg_string shader_path)
 {
     // Load binary from file
     uint32_t *code      = NULL;
@@ -970,23 +967,40 @@ void rg_renderer_load_shader(rg_renderer *renderer, const char *shader_name, con
     vk_check(vkCreateShaderModule(renderer->device, &shader_module_create_info, NULL, &module), "Couldn't create shader module");
 
     // Save it in map
-    rg_renderer_check(rg_hash_map_set(renderer->shaders, shader_name, (rg_hash_map_value_t) (void *) module),
-                      "Couldn't save shader module");
+    rg_shader_id shader_id = rg_handle_storage_push(renderer->shaders, module);
 
-    printf("Loaded shader \"%s\"\n", shader_name);
+    // Get the name of the shader without the beginning of the path
+    size_t i = rg_string_find_char_reverse(shader_path, '/');
+    rg_string shader_name;
+    if (i == -1)
+    {
+        shader_name = shader_path;
+    }
+    else
+    {
+        shader_name = rg_string_get_substring(shader_path, i + 1, rg_string_end(shader_path));
+    }
+
+    RG_AS_CSTR(shader_name, shader_name_cstr)
+    {
+        printf("Loaded shader \"%s\"\n", shader_name_cstr);
+    }
+
+    // Return the shader id
+    return shader_id;
 }
 
-void rg_renderer_destroy_shader(rg_renderer *renderer, const char *shader_name)
+void rg_renderer_destroy_shader(rg_renderer *renderer, rg_shader_id shader_id)
 {
     // Get shader module
-    rg_hash_map_get_result get_result = rg_hash_map_get(renderer->shaders, shader_name);
+    rg_handle_storage_get_result get_result = rg_handle_storage_get(renderer->shaders, shader_id);
     if (get_result.exists)
     {
         // Destroy shader module
-        vkDestroyShaderModule(renderer->device, (VkShaderModule) get_result.value.as_ptr, NULL);
+        vkDestroyShaderModule(renderer->device, (VkShaderModule) get_result.value, NULL);
 
         // Remove from map
-        rg_hash_map_erase(renderer->shaders, shader_name);
+        rg_handle_storage_erase(renderer->shaders, shader_id);
     }
 }
 
@@ -995,24 +1009,24 @@ void rg_renderer_clear_shaders(rg_renderer *renderer)
     if (renderer->shaders != NULL)
     {
         // Destroy all shader modules
-        rg_hash_map_it it = rg_hash_map_iterator(renderer->shaders);
-        while (rg_hash_map_next(&it))
+        rg_handle_storage_it it = rg_handle_storage_iterator(renderer->shaders);
+        while (rg_handle_storage_next(&it))
         {
-            vkDestroyShaderModule(renderer->device, (VkShaderModule) it.value.as_ptr, NULL);
+            vkDestroyShaderModule(renderer->device, (VkShaderModule) it.value, NULL);
         }
 
         // Destroy map
-        rg_destroy_hash_map(&renderer->shaders);
+        rg_destroy_handle_storage(&renderer->shaders);
     }
 }
 
-VkShaderModule rg_renderer_get_shader(rg_renderer *renderer, const char *shader_name)
+VkShaderModule rg_renderer_get_shader(rg_renderer *renderer, rg_shader_id shader_id)
 {
     // Get shader module
-    rg_hash_map_get_result get_result = rg_hash_map_get(renderer->shaders, shader_name);
+    rg_handle_storage_get_result get_result = rg_handle_storage_get(renderer->shaders, shader_id);
     if (get_result.exists)
     {
-        return (VkShaderModule) get_result.value.as_ptr;
+        return (VkShaderModule) get_result.value;
     }
     else
     {
@@ -1355,7 +1369,7 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
     // --=== Init various storages ===--
 
     // Init shaders map
-    renderer->shaders = rg_create_hash_map();
+    renderer->shaders = rg_create_handle_storage();
 
     return renderer;
 }
