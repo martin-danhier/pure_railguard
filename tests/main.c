@@ -1,4 +1,6 @@
 #include "framework/test_framework.h"
+#include <railguard/utils/memory.h>
+
 // Import the test files
 // The editor says that they are unused, but they are actually used by the RUN_ALL_TESTS macro
 #include "utils/test_hash_map.h"
@@ -13,5 +15,25 @@
 // Entry point for the tests
 int main(void)
 {
-    return RUN_ALL_TESTS();
+    int result = 0;
+
+#ifdef MEMORY_CHECKS
+    // Initialize the memory watcher
+    rg_mem_watcher_init();
+#endif
+
+    // Initialize the test framework
+    result = RUN_ALL_TESTS();
+
+#ifdef MEMORY_CHECKS
+    // Print the results of the memory watcher
+    if (!rg_mem_watcher_print_leaks()) {
+        result = 1;
+    }
+
+    // Cleanup the memory watcher
+    rg_mem_watcher_cleanup();
+#endif
+
+    return result;
 }

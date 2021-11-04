@@ -22,6 +22,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_definitions(
             DEBUG
             USE_VK_VALIDATION_LAYERS
+            MEMORY_CHECKS
     )
 elseif (CMAKE_BUILD_TYPE STREQUAL "Release")
     add_compile_definitions(
@@ -43,6 +44,7 @@ set(sources
         src/utils/event_sender.c
         src/utils/storage.c
         src/utils/string.c
+        src/utils/memory.c
         )
 
 set(test_resources

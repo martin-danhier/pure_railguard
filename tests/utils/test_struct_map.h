@@ -95,7 +95,6 @@ TEST(StructMap)
     // We need to get the pointers again
     rg_test_struct_map_data *new_key2_in_map = rg_struct_map_get(struct_map, 2);
     ASSERT_NOT_NULL(new_key2_in_map);
-    EXPECT_TRUE(key1_in_map != new_key2_in_map);
     EXPECT_TRUE(new_key2_in_map->number == 89);
     EXPECT_TRUE(new_key2_in_map->pos[0] == 78);
     EXPECT_TRUE(new_key2_in_map->pos[1] == -9.5);
@@ -112,7 +111,6 @@ TEST(StructMap)
 
     rg_test_struct_map_data *new_other_key_in_map = rg_struct_map_get(struct_map, 987654);
     ASSERT_NOT_NULL(new_other_key_in_map);
-    EXPECT_TRUE(other_key_in_map != new_other_key_in_map);
     EXPECT_TRUE(new_other_key_in_map->number == 789);
     EXPECT_TRUE(new_other_key_in_map->pos[0] == -8888888.55);
     EXPECT_TRUE(new_other_key_in_map->pos[1] == 88);

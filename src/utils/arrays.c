@@ -1,8 +1,8 @@
 #include "railguard/utils/arrays.h"
 
+#include <railguard/utils/memory.h>
+
 #include <assert.h>
-#include <stdbool.h>
-#include <stdlib.h>
 #include <string.h>
 
 // --=== Arrays ===--
@@ -11,7 +11,7 @@ rg_array rg_create_array(size_t size, size_t element_size)
 {
     rg_array array = {
         .count = size,
-        .data  = malloc(size * element_size),
+        .data  = rg_malloc(size * element_size),
     };
     assert(array.data != NULL);
     return array;
@@ -21,7 +21,7 @@ rg_array rg_create_array_zeroed(size_t size, size_t element_size)
 {
     rg_array array = {
         .count = size,
-        .data  = calloc(size, element_size),
+        .data  = rg_calloc(size, element_size),
     };
     assert(array.data != NULL);
     return array;
@@ -30,7 +30,7 @@ rg_array rg_create_array_zeroed(size_t size, size_t element_size)
 void rg_destroy_array(rg_array *p_array)
 {
     // Free pointer and set values to NULL
-    free(p_array->data);
+    rg_free(p_array->data);
     p_array->data  = NULL;
     p_array->count = 0;
 }
@@ -44,7 +44,7 @@ bool rg_create_vector(size_t initial_capacity, size_t element_size, rg_vector *p
     p_dest_vector->element_size = element_size;
     p_dest_vector->growth_amount = 1;
     p_dest_vector->count        = 0;
-    p_dest_vector->data         = malloc(element_size * initial_capacity);
+    p_dest_vector->data         = rg_malloc(element_size * initial_capacity);
 
     if (p_dest_vector->data == NULL)
     {
@@ -57,7 +57,7 @@ void rg_destroy_vector(rg_vector *p_vector)
 {
     p_vector->capacity = 0;
     p_vector->count    = 0;
-    free(p_vector->data);
+    rg_free(p_vector->data);
     p_vector->data = NULL;
 }
 
@@ -79,7 +79,7 @@ void rg_vector_ensure_capacity(rg_vector *p_vector, size_t required_minimum_capa
             p_vector->growth_amount *= 2;
         }
 
-        p_vector->data     = realloc(p_vector->data, new_capacity * p_vector->element_size);
+        p_vector->data     = rg_realloc(p_vector->data, new_capacity * p_vector->element_size);
         p_vector->capacity = new_capacity;
     }
 }

@@ -25,7 +25,9 @@
     void __test_##test_name##_##id(tf_context *___context___)
 
 // Macro to run all tests
-#define RUN_ALL_TESTS() tf_main()
+#define RUN_ALL_TESTS() tf_main(NULL)
+// Macro to run a specific test
+#define RUN_TEST(name) tf_main(name)
 
 // Macros for assertions
 
@@ -61,7 +63,7 @@ typedef void (*tf_test_function)(tf_context *);
 
 // --- Functions ---
 
-int tf_main(void);
+int tf_main(const char* test_name);
 
 void tf_register_test(const char *name, tf_test_function pfn_test);
 

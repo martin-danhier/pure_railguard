@@ -205,5 +205,12 @@ TEST(String)
     EXPECT_TRUE(rg_string_end(s) == 4);
     EXPECT_TRUE(rg_string_end(RG_EMPTY_STRING) == 0);
 
+    // Clean up
+    rg_free(s3.data);
+    rg_free(s4.data);
+    rg_free(s5.data);
+    rg_free(s6.data);
+
+
 
 }

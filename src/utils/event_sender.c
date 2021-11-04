@@ -1,11 +1,12 @@
- #include "railguard/utils/event_sender.h"
+#include "railguard/utils/event_sender.h"
 
- #include <railguard/utils/arrays.h>
- #include <railguard/utils/storage.h>
+#include <railguard/utils/arrays.h>
+#include <railguard/utils/memory.h>
+#include <railguard/utils/storage.h>
 
- #include <stdlib.h>
+#include <stdlib.h>
 
- // --=== Types ===--
+// --=== Types ===--
 
  typedef struct rg_event_sender
  {
@@ -17,7 +18,7 @@
  rg_event_sender *rg_create_event_sender(void)
  {
      // Allocate sender
-     rg_event_sender *sender = calloc(1, sizeof(rg_event_sender));
+     rg_event_sender *sender = rg_calloc(1, sizeof(rg_event_sender));
      if (sender == NULL) {
          return NULL;
      }
@@ -25,7 +26,7 @@
      // Create handlers_lookup_map hash map
      sender->handlers = rg_create_storage(sizeof(rg_event_handler));
      if (sender->handlers == NULL) {
-         free(sender);
+         rg_free(sender);
          return NULL;
      }
 
@@ -42,7 +43,7 @@
      rg_destroy_storage(&(*event_sender)->handlers);
 
      // Free the sender itself
-     free(*event_sender);
+     rg_free(*event_sender);
      *event_sender = NULL;
  }
 

@@ -60,6 +60,14 @@ rg_string rg_create_string_from_cstr(const char *cstr);
 rg_string rg_clone_string(rg_string string);
 
 /**
+ * Creates a new string from a buffer and a length. The buffer is not a null-terminated string.
+ * @param buffer the buffer to create the string from.
+ * @param length the length of the buffer.
+ * @return a new rg_string with the given buffer and length.
+ */
+rg_string rg_create_string_from_buffer(void *buffer, size_t length);
+
+/**
  * Checks if the given rg_string is empty (equal to EMPTY_STRING).
  * @param string the string to check.
  * @return true if the string is empty, false otherwise.

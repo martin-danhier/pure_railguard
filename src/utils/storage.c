@@ -1,6 +1,7 @@
 #include "railguard/utils/storage.h"
 
 #include <railguard/utils/maps.h>
+#include <railguard/utils/memory.h>
 
 #include <stdlib.h>
 
@@ -20,7 +21,7 @@ typedef struct rg_storage
 rg_storage *rg_create_storage(size_t element_size)
 {
     // Allocate the storage structure.
-    rg_storage *storage = calloc(1, sizeof(rg_storage));
+    rg_storage *storage = rg_calloc(1, sizeof(rg_storage));
     if (storage == NULL)
     {
         return NULL;
@@ -30,7 +31,7 @@ rg_storage *rg_create_storage(size_t element_size)
     storage->map = rg_create_struct_map(element_size);
     if (storage->map == NULL)
     {
-        free(storage);
+        rg_free(storage);
         return NULL;
     }
 
@@ -52,7 +53,7 @@ void rg_destroy_storage(rg_storage **storage)
     rg_destroy_struct_map(&(*storage)->map);
 
     // Free the storage structure.
-    free(*storage);
+    rg_free(*storage);
     *storage = NULL;
 }
 
@@ -172,7 +173,7 @@ typedef struct rg_handle_storage
 rg_handle_storage *rg_create_handle_storage(void)
 {
     // Allocate the storage structure.
-    rg_handle_storage *storage = calloc(1, sizeof(rg_handle_storage));
+    rg_handle_storage *storage = rg_calloc(1, sizeof(rg_handle_storage));
     if (storage == NULL)
     {
         return NULL;
@@ -182,7 +183,7 @@ rg_handle_storage *rg_create_handle_storage(void)
     storage->map = rg_create_hash_map();
     if (storage->map == NULL)
     {
-        free(storage);
+        rg_free(storage);
         return NULL;
     }
 
@@ -204,7 +205,7 @@ void rg_destroy_handle_storage(rg_handle_storage **storage)
     rg_destroy_hash_map(&(*storage)->map);
 
     // Free the storage structure.
-    free(*storage);
+    rg_free(*storage);
     *storage = NULL;
 }
 

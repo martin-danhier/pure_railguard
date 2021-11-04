@@ -1,5 +1,7 @@
 #include "railguard/utils/string.h"
 
+#include <railguard/utils/memory.h>
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -38,7 +40,7 @@ rg_string rg_clone_string(const rg_string string)
 
     // Copy the string into a new string
     rg_string clone = {
-        .data   = (char *) malloc(string.length + 1),
+        .data   = (char *) rg_malloc(string.length + 1),
         .length = string.length,
     };
     if (clone.data == NULL)
@@ -50,11 +52,42 @@ rg_string rg_clone_string(const rg_string string)
     void *new_data = memcpy(clone.data, string.data, string.length + 1);
     if (new_data == NULL)
     {
-        free(clone.data);
+        rg_free(clone.data);
         return RG_EMPTY_STRING;
     }
 
     return clone;
+}
+
+rg_string rg_create_string_from_buffer(void *buffer, size_t length)
+{
+    if (buffer == NULL || length == 0)
+    {
+        return RG_EMPTY_STRING;
+    }
+
+    // Add a null terminator
+    char *new_data = (char *) rg_malloc(length + 1);
+    if (new_data == NULL)
+    {
+        return RG_EMPTY_STRING;
+    }
+
+    // Copy the string
+    void *new_data_copy = memcpy(new_data, buffer, length);
+    if (new_data_copy == NULL)
+    {
+        rg_free(new_data);
+        return RG_EMPTY_STRING;
+    }
+
+    // Add the null terminator
+    new_data[length] = '\0';
+
+    return (rg_string) {
+        .data   = new_data,
+        .length = length,
+    };
 }
 
 rg_string rg_string_concat(rg_string a, rg_string b)
@@ -68,7 +101,7 @@ rg_string rg_string_concat(rg_string a, rg_string b)
     // Allocate memory for the new string. It will be greater than 0 since we know that they are not both empty.
     size_t    new_length = a.length + b.length;
     rg_string new_string = {
-        .data   = (char *) malloc(new_length + 1),
+        .data   = (char *) rg_malloc(new_length + 1),
         .length = new_length,
     };
     if (new_string.data == NULL)
@@ -95,7 +128,7 @@ rg_string rg_string_concat(rg_string a, rg_string b)
     // If there was an error, free the memory and return an empty string
     else
     {
-        free(new_string.data);
+        rg_free(new_string.data);
         return RG_EMPTY_STRING;
     }
 
@@ -202,3 +235,4 @@ rg_array rg_string_array_from_cstr_array(const char * const *cstrs, size_t lengt
 
     return array;
 }
+

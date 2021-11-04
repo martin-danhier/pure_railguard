@@ -1,5 +1,7 @@
 #include "railguard/utils/io.h"
 
+#include <railguard/utils/memory.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -21,7 +23,7 @@ bool rg_load_file_binary(rg_string file_name, void **data, size_t *size)
             fseek(file, 0, SEEK_SET);
 
             // Allocate memory
-            *data = malloc(*size);
+            *data = rg_malloc(*size);
             if (*data != NULL)
             {
                 // Read file

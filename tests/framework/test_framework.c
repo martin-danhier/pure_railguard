@@ -222,8 +222,80 @@ tf_context *tf_create_context(void)
 
 void tf_delete_context(tf_context *context)
 {
+    if (context == NULL) {
+        return;
+    }
+
     tf_linked_list_clear(&context->errors);
     free(context);
+}
+
+bool tf_manager_run_test(tf_test_manager *manager, const char *name)
+{
+    printf("\n");
+
+    tf_linked_list_it it = tf_linked_list_iterator(&manager->registered_tests);
+    while (tf_linked_list_next(&it))
+    {
+        tf_test *current_test = it.value;
+        if (strcmp(current_test->name, name) == 0)
+        {
+            // Print progress
+            TF_FORMAT_BOLD;
+            printf("[Test %llu/%llu] \"%s\"", it.index + 1, manager->registered_tests.count, current_test->name);
+            TF_FORMAT_RESET;
+
+            // Init its context
+            current_test->context = tf_create_context();
+            // Run the test
+            current_test->pfn_test(current_test->context);
+
+            // Print result
+
+            printf("     ---> ");
+            bool success = current_test->context->errors.count == 0;
+            if (success)
+            {
+                TF_FORMAT_BOLD_GREEN;
+                printf("PASSED");
+            }
+            else
+            {
+                TF_FORMAT_BOLD_RED;
+                printf("FAILED");
+            }
+            TF_FORMAT_RESET;
+            printf("\n");
+
+            // Print errors if there is any
+            tf_linked_list_it err_it = tf_linked_list_iterator(&current_test->context->errors);
+            while (tf_linked_list_next(&err_it))
+            {
+                tf_error *current_error = err_it.value;
+
+                // Convert the severity to string
+                printf("\t- [");
+                switch (current_error->severity)
+                {
+                    case TF_ERROR:
+                        TF_FORMAT_RED;
+                        printf("Error");
+                        break;
+                        case TF_WARNING:
+                            TF_FORMAT_YELLOW;
+                            printf("Warning");
+                            break;
+                }
+                TF_FORMAT_RESET;
+
+                printf("] %s:%llu\n\t%s\n", current_error->file, current_error->line_number, current_error->message);
+            }
+
+            return success;
+        }
+    }
+
+    return false;
 }
 
 bool tf_manager_run_all_tests(tf_test_manager *manager)
@@ -417,11 +489,19 @@ void tf_register_test(const char *name, tf_test_function pfn_test)
     tf_linked_list_push(&TF_MANAGER.registered_tests, &test, sizeof(tf_test));
 }
 
-int tf_main(void)
+int tf_main(const char* test_name)
 {
     TF_INIT_FORMATTING;
 
-    bool result = tf_manager_run_all_tests(&TF_MANAGER);
+    bool result = false;
+    if (test_name == NULL)
+    {
+        result = tf_manager_run_all_tests(&TF_MANAGER);
+    }
+    else {
+        result = tf_manager_run_test(&TF_MANAGER, test_name);
+    }
+
     tf_clear_manager(&TF_MANAGER);
 
     // Return an error if at least one test failed

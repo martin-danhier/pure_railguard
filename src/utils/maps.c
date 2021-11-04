@@ -1,6 +1,7 @@
 #include "railguard/utils/maps.h"
 
 #include <railguard/utils/arrays.h>
+#include <railguard/utils/memory.h>
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -104,7 +105,7 @@ bool rg_hash_map_expand(rg_hash_map *hash_map)
         return false;
     }
 
-    rg_hash_map_entry *new_entries = calloc(new_capacity, sizeof(rg_hash_map_entry));
+    rg_hash_map_entry *new_entries = rg_calloc(new_capacity, sizeof(rg_hash_map_entry));
     if (new_entries == NULL)
     {
         return false;
@@ -120,7 +121,7 @@ bool rg_hash_map_expand(rg_hash_map *hash_map)
         }
     }
 
-    free(hash_map->data);
+    rg_free(hash_map->data);
     hash_map->data     = new_entries;
     hash_map->capacity = new_capacity;
     return true;
@@ -131,7 +132,7 @@ bool rg_init_hash_map(rg_hash_map *hash_map)
     // Allocate array
     hash_map->capacity = 1;
     hash_map->count    = 0;
-    hash_map->data     = calloc(hash_map->capacity, sizeof(rg_hash_map_entry));
+    hash_map->data     = rg_calloc(hash_map->capacity, sizeof(rg_hash_map_entry));
     if (hash_map->data == NULL)
     {
         return false;
@@ -145,7 +146,7 @@ bool rg_init_hash_map(rg_hash_map *hash_map)
 
 rg_hash_map *rg_create_hash_map(void)
 {
-    rg_hash_map *map = malloc(sizeof(rg_hash_map));
+    rg_hash_map *map = rg_malloc(sizeof(rg_hash_map));
     if (map == NULL)
     {
         return NULL;
@@ -153,7 +154,7 @@ rg_hash_map *rg_create_hash_map(void)
 
     if (!rg_init_hash_map(map))
     {
-        free(map);
+        rg_free(map);
         return NULL;
     }
 
@@ -163,10 +164,10 @@ rg_hash_map *rg_create_hash_map(void)
 void rg_destroy_hash_map(rg_hash_map **p_hash_map)
 {
     // Free the data
-    free((*p_hash_map)->data);
+    rg_free((*p_hash_map)->data);
 
     // Free the map
-    free(*p_hash_map);
+    rg_free(*p_hash_map);
     *p_hash_map = NULL;
 }
 
@@ -313,7 +314,7 @@ rg_hash_map_key_t rg_struct_map_get_key_of_storage_element(rg_struct_map *struct
 
 rg_struct_map *rg_create_struct_map(size_t value_size)
 {
-    rg_struct_map *map = malloc(sizeof(rg_struct_map));
+    rg_struct_map *map = rg_malloc(sizeof(rg_struct_map));
     if (map == NULL)
     {
         return NULL;
@@ -322,7 +323,7 @@ rg_struct_map *rg_create_struct_map(size_t value_size)
     // Init the hash map
     if (!rg_init_hash_map(&map->hash_map))
     {
-        free(map);
+        rg_free(map);
         return NULL;
     }
 
@@ -334,7 +335,7 @@ rg_struct_map *rg_create_struct_map(size_t value_size)
     {
         rg_hash_map *hash_map = &map->hash_map;
         rg_destroy_hash_map(&hash_map);
-        free(map);
+        rg_free(map);
         return NULL;
     }
 
@@ -346,13 +347,13 @@ rg_struct_map *rg_create_struct_map(size_t value_size)
 void rg_destroy_struct_map(rg_struct_map **p_struct_map)
 {
     // Destroy the vector
-    free((*p_struct_map)->storage.data);
+    rg_free((*p_struct_map)->storage.data);
 
     // Destroy the hash map
-    free((*p_struct_map)->hash_map.data);
+    rg_free((*p_struct_map)->hash_map.data);
 
     // Destroy the struct map
-    free(*p_struct_map);
+    rg_free(*p_struct_map);
     *p_struct_map = NULL;
 }
 
