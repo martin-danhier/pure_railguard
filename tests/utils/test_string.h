@@ -8,15 +8,18 @@ TEST(String)
     // Empty string is empty
     rg_string empty = RG_EMPTY_STRING;
     EXPECT_TRUE(rg_string_is_empty(empty));
-    EXPECT_NULL(empty.data);
+    ASSERT_NOT_NULL(empty.data);
+    EXPECT_TRUE(empty.data[0] == '\0');
     EXPECT_TRUE(empty.length == 0);
     empty = RG_CSTR_CONST("");
     EXPECT_TRUE(rg_string_is_empty(empty));
-    EXPECT_NULL(empty.data);
+    ASSERT_NOT_NULL(empty.data);
+    EXPECT_TRUE(empty.data[0] == '\0');
     EXPECT_TRUE(empty.length == 0);
     empty = RG_CSTR("");
     EXPECT_TRUE(rg_string_is_empty(empty));
-    EXPECT_NULL(empty.data);
+    ASSERT_NOT_NULL(empty.data);
+    EXPECT_TRUE(empty.data[0] == '\0');
     EXPECT_TRUE(empty.length == 0);
 
     // Create string from const cstr
@@ -93,7 +96,8 @@ TEST(String)
 
     rg_string s7 = rg_string_concat(RG_EMPTY_STRING, RG_EMPTY_STRING);
     ASSERT_TRUE(s7.length == 0);
-    EXPECT_NULL(s7.data);
+    ASSERT_NOT_NULL(s7.data);
+    EXPECT_TRUE(s7.data[0] == '\0');
     EXPECT_TRUE(rg_string_is_empty(s7));
 
     // Test equality
@@ -120,17 +124,15 @@ TEST(String)
     EXPECT_TRUE(rg_string_equals(RG_EMPTY_STRING, s7));
 
     // Test conversion to c string
-    char *s_cstr = rg_string_to_cstr(s);
+    char *s_cstr = s.data;
     ASSERT_NOT_NULL(s_cstr);
     EXPECT_TRUE(strcmp(s_cstr, "Hello") == 0);
     EXPECT_TRUE(s_cstr[5] == '\0');
-    free(s_cstr);
 
-    char *empty_cstr = rg_string_to_cstr(empty);
+    char *empty_cstr = empty.data;
     ASSERT_NOT_NULL(empty_cstr);
     EXPECT_TRUE(strcmp(empty_cstr, "") == 0);
     EXPECT_TRUE(empty_cstr[0] == '\0');
-    free(empty_cstr);
 
     // Test find functions
     ssize_t i = rg_string_find_char(s, 'l');
@@ -164,28 +166,38 @@ TEST(String)
     EXPECT_TRUE(substring.data[2] == s4.data[5]);
     EXPECT_TRUE(substring.data[3] == s4.data[6]);
     EXPECT_FALSE(rg_string_is_empty(substring));
+
     // Substring of empty string
     substring = rg_string_get_substring(RG_EMPTY_STRING, 0, 4);
-    EXPECT_NULL(substring.data);
+    ASSERT_NOT_NULL(substring.data);
+    EXPECT_TRUE(substring.data[0] == '\0');
     EXPECT_TRUE(substring.length == 0);
     EXPECT_TRUE(rg_string_is_empty(substring));
+
     // Substring of 0 char
     substring = rg_string_get_substring(s4, 4, 4);
-    EXPECT_NULL(substring.data);
+    ASSERT_NOT_NULL(substring.data);
+    EXPECT_TRUE(substring.data[0] == '\0');
     EXPECT_TRUE(substring.length == 0);
     EXPECT_TRUE(rg_string_is_empty(substring));
+
     // Substring out of bounds
     substring = rg_string_get_substring(s4, 0, 789);
-    EXPECT_NULL(substring.data);
+    ASSERT_NOT_NULL(substring.data);
+    EXPECT_TRUE(substring.data[0] == '\0');
     EXPECT_TRUE(substring.length == 0);
     EXPECT_TRUE(rg_string_is_empty(substring));
+
     substring = rg_string_get_substring(s4, 78, 2);
-    EXPECT_NULL(substring.data);
+    ASSERT_NOT_NULL(substring.data);
+    EXPECT_TRUE(substring.data[0] == '\0');
     EXPECT_TRUE(substring.length == 0);
     EXPECT_TRUE(rg_string_is_empty(substring));
+
     // Start > end
     substring = rg_string_get_substring(s4, 5, 2);
-    EXPECT_NULL(substring.data);
+    ASSERT_NOT_NULL(substring.data);
+    EXPECT_TRUE(substring.data[0] == '\0');
     EXPECT_TRUE(substring.length == 0);
     EXPECT_TRUE(rg_string_is_empty(substring));
 
@@ -193,9 +205,5 @@ TEST(String)
     EXPECT_TRUE(rg_string_end(s) == 4);
     EXPECT_TRUE(rg_string_end(RG_EMPTY_STRING) == 0);
 
-    // Test macros
-    RG_AS_CSTR(s4, v) {
-        EXPECT_TRUE(strcmp(v, "HelloWorld") == 0);
-    }
 
 }

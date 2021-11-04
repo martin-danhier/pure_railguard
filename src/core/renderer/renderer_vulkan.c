@@ -5,23 +5,16 @@
 #include <railguard/core/window.h>
 #include <railguard/utils/arrays.h>
 #include <railguard/utils/event_sender.h>
+#include <railguard/utils/storage.h>
 
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <volk.h>
 // Needs to be after volk
 #include <railguard/utils/io.h>
-#include <railguard/utils/maps.h>
 
 #include <vk_mem_alloc.h>
-
-#ifdef USE_VK_VALIDATION_LAYERS
-
-#include <railguard/utils/storage.h>
-
-#endif
 
 // --==== SETTINGS ====--
 
@@ -111,7 +104,7 @@ typedef struct rg_renderer
      * We place them in a array to be able to efficiently iterate through them. And because their number won't change, we can safely
      * send pointers to individual swapchains around.
      */
-    rg_array     swapchains;
+    rg_array           swapchains;
     rg_handle_storage *shaders;
 
 } rg_renderer;
@@ -122,15 +115,16 @@ typedef struct rg_renderer
 
 // region Error handling functions
 
-const char *rg_renderer_vk_result_to_str(VkResult result)
+rg_string rg_renderer_vk_result_to_str(VkResult result)
 {
     switch (result)
     {
-        case VK_SUCCESS: return "VK_SUCCESS";
-        case VK_ERROR_INITIALIZATION_FAILED: return "VK_ERROR_INITIALIZATION_FAILED";
-        case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: return "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";
+        case VK_SUCCESS: return RG_CSTR_CONST("VK_SUCCESS");
+        case VK_ERROR_INITIALIZATION_FAILED: return RG_CSTR_CONST("VK_ERROR_INITIALIZATION_FAILED");
+        case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: return RG_CSTR_CONST("VK_ERROR_NATIVE_WINDOW_IN_USE_KHR");
         default:
-            return "N"; // We just need a character that is different from VK_ ... because I don't want to convert the number to string
+            return RG_CSTR_CONST(
+                "N"); // We just need a character that is different from VK_ ... because I don't want to convert the number to string
     }
 }
 
@@ -139,14 +133,14 @@ void vk_check(VkResult result, const char *error_message)
     if (result != VK_SUCCESS)
     {
         // Pretty print error
-        const char *result_str = rg_renderer_vk_result_to_str(result);
-        if (result_str[0] == 'N')
+        rg_string result_str = rg_renderer_vk_result_to_str(result);
+        if (result_str.data[0] == 'N')
         {
             fprintf(stderr, "[Vulkan Error] A Vulkan function call returned VkResult = %d !\n", result);
         }
         else
         {
-            fprintf(stderr, "[Vulkan Error] A Vulkan function call returned %s !\n", result_str);
+            fprintf(stderr, "[Vulkan Error] A Vulkan function call returned %s !\n", result_str.data);
         }
         // Optional custom error message precision
         if (error_message != NULL)
@@ -172,11 +166,11 @@ void rg_renderer_check(bool result, const char *error_message)
 
 /**
  * @brief Checks if the given extensions are supported
- * @param desired_extensions is an array of desired_extensions_count layer names (null terminated strings)
+ * @param desired_extensions is an array of desired_extensions_count layer names
  * @param desired_extensions_count is the number of extension names to check
  * @return true if every extension is supported, false otherwise.
  */
-bool rg_renderer_check_instance_extension_support(const char *const *desired_extensions, uint32_t desired_extensions_count)
+bool rg_renderer_check_instance_extension_support(rg_string *desired_extensions, uint32_t desired_extensions_count)
 {
     // Get the number of available desired_extensions
     uint32_t available_extensions_count = 0;
@@ -194,7 +188,8 @@ bool rg_renderer_check_instance_extension_support(const char *const *desired_ext
         // Search available until the desired is found or not
         for (uint32_t j = 0; j < available_extensions_count && !found; j++)
         {
-            if (strcmp(desired_extensions[i], ((VkExtensionProperties *) available_extensions.data)[j].extensionName) == 0)
+            if (rg_string_equals(desired_extensions[i],
+                                 RG_CSTR(((VkExtensionProperties *) available_extensions.data)[j].extensionName)))
             {
                 found = true;
             }
@@ -219,9 +214,9 @@ bool rg_renderer_check_instance_extension_support(const char *const *desired_ext
  * @param desired_extensions_count is the number of extension names to check
  * @return true if every extension is supported, false otherwise.
  */
-bool rg_renderer_check_device_extension_support(VkPhysicalDevice   physical_device,
-                                                const char *const *desired_extensions,
-                                                uint32_t           desired_extensions_count)
+bool rg_renderer_check_device_extension_support(VkPhysicalDevice physical_device,
+                                                rg_string       *desired_extensions,
+                                                uint32_t         desired_extensions_count)
 {
     // Get the number of available desired_extensions
     uint32_t available_extensions_count = 0;
@@ -240,7 +235,8 @@ bool rg_renderer_check_device_extension_support(VkPhysicalDevice   physical_devi
         // Search available until the desired is found or not
         for (uint32_t j = 0; j < available_extensions_count && !found; j++)
         {
-            if (strcmp(desired_extensions[i], ((VkExtensionProperties *) available_extensions.data)[j].extensionName) == 0)
+            if (rg_string_equals(desired_extensions[i],
+                                 RG_CSTR(((VkExtensionProperties *) available_extensions.data)[j].extensionName)))
             {
                 found = true;
             }
@@ -266,7 +262,7 @@ bool rg_renderer_check_device_extension_support(VkPhysicalDevice   physical_devi
  * @param desired_layers_count is the number of layer names to check
  * @return true if every layer is supported, false otherwise.
  */
-bool rg_renderer_check_layer_support(const char *const *desired_layers, uint32_t desired_layers_count)
+bool rg_renderer_check_layer_support(rg_string *desired_layers, uint32_t desired_layers_count)
 {
     // Get the number of available desired_layers
     uint32_t available_layers_count = 0;
@@ -275,7 +271,7 @@ bool rg_renderer_check_layer_support(const char *const *desired_layers, uint32_t
     rg_array available_layers = rg_create_array(available_layers_count, sizeof(VkLayerProperties));
     vk_check(vkEnumerateInstanceLayerProperties(&available_layers_count, available_layers.data), NULL);
 
-    // For each desired layer, rg_renderer_check if it is available
+    // For each desired layer, check if it is available
     bool valid = true;
     for (uint32_t i = 0; i < desired_layers_count && valid; i++)
     {
@@ -284,7 +280,7 @@ bool rg_renderer_check_layer_support(const char *const *desired_layers, uint32_t
         // Search available until the desired is found or not
         for (uint32_t j = 0; j < available_layers_count && !found; j++)
         {
-            if (strcmp(desired_layers[i], ((VkLayerProperties *) available_layers.data)[j].layerName) == 0)
+            if (rg_string_equals(desired_layers[i], RG_CSTR(((VkLayerProperties *) available_layers.data)[j].layerName)))
             {
                 found = true;
             }
@@ -388,8 +384,8 @@ uint32_t rg_renderer_rate_physical_device(VkPhysicalDevice device)
 
     // The device needs to support the following device extensions, otherwise it is unusable
 #define REQUIRED_DEVICE_EXT_COUNT 1
-    const char *required_device_extensions[REQUIRED_DEVICE_EXT_COUNT] = {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+    rg_string required_device_extensions[REQUIRED_DEVICE_EXT_COUNT] = {
+        RG_CSTR_CONST(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
     };
     bool extensions_are_supported =
         rg_renderer_check_device_extension_support(device, required_device_extensions, REQUIRED_DEVICE_EXT_COUNT);
@@ -970,7 +966,7 @@ rg_shader_id rg_renderer_load_shader(rg_renderer *renderer, rg_string shader_pat
     rg_shader_id shader_id = rg_handle_storage_push(renderer->shaders, module);
 
     // Get the name of the shader without the beginning of the path
-    size_t i = rg_string_find_char_reverse(shader_path, '/');
+    size_t    i = rg_string_find_char_reverse(shader_path, '/');
     rg_string shader_name;
     if (i == -1)
     {
@@ -981,10 +977,7 @@ rg_shader_id rg_renderer_load_shader(rg_renderer *renderer, rg_string shader_pat
         shader_name = rg_string_get_substring(shader_path, i + 1, rg_string_end(shader_path));
     }
 
-    RG_AS_CSTR(shader_name, shader_name_cstr)
-    {
-        printf("Loaded shader \"%s\"\n", shader_name_cstr);
-    }
+    printf("Loaded shader \"%s\"\n", shader_name.data);
 
     // Return the shader id
     return shader_id;
@@ -1071,20 +1064,25 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
     // Add other extensions in the extra slots
     uint32_t extra_ext_index = required_extensions.count - extra_extension_count;
 #ifdef USE_VK_VALIDATION_LAYERS
-    ((char **) required_extensions.data)[extra_ext_index++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+    ((rg_string *) required_extensions.data)[extra_ext_index++] = RG_CSTR_CONST(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 #endif
 
     rg_renderer_check(rg_renderer_check_instance_extension_support(required_extensions.data, required_extensions.count),
                       "Not all required Vulkan extensions are supported.");
 
+    // Convert to cstr array
+    rg_array required_extension_cstrs = rg_string_array_to_cstr_array(required_extensions.data, required_extensions.count);
+
     // Get the validations layers if needed
 #ifdef USE_VK_VALIDATION_LAYERS
 #define ENABLED_LAYERS_COUNT 1
-    const char *required_validation_layers[ENABLED_LAYERS_COUNT] = {
-        "VK_LAYER_KHRONOS_validation",
+    rg_string required_validation_layers[ENABLED_LAYERS_COUNT] = {
+        RG_CSTR_CONST("VK_LAYER_KHRONOS_validation"),
     };
     rg_renderer_check(rg_renderer_check_layer_support(required_validation_layers, ENABLED_LAYERS_COUNT),
                       "Vulkan validation layers requested, but not available.");
+    // Convert to cstrs
+    rg_array required_validation_layers_cstrs = rg_string_array_to_cstr_array(required_validation_layers, ENABLED_LAYERS_COUNT);
 #endif
 
     VkApplicationInfo applicationInfo = {
@@ -1109,13 +1107,13 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
         .pApplicationInfo = &applicationInfo,
 
         // Extensions
-        .enabledExtensionCount   = required_extensions.count,
-        .ppEnabledExtensionNames = required_extensions.data,
+        .enabledExtensionCount   = required_extension_cstrs.count,
+        .ppEnabledExtensionNames = required_extension_cstrs.data,
 
     // Validation layers
 #ifdef USE_VK_VALIDATION_LAYERS
         .enabledLayerCount   = ENABLED_LAYERS_COUNT,
-        .ppEnabledLayerNames = required_validation_layers,
+        .ppEnabledLayerNames = required_validation_layers_cstrs.data,
 #else
         .enabledLayerCount   = 0,
         .ppEnabledLayerNames = NULL,
@@ -1126,6 +1124,10 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
 
     // Cleanup instance creation
     rg_destroy_array(&required_extensions);
+    rg_destroy_array(&required_extension_cstrs);
+#ifdef USE_VK_VALIDATION_LAYERS
+    rg_destroy_array(&required_validation_layers_cstrs);
+#endif
 
     // Register instance in Volk
     volkLoadInstance(renderer->instance);

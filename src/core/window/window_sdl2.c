@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #ifdef RENDERER_VULKAN
 #include <railguard/utils/event_sender.h>
+#include <railguard/utils/string.h>
 
 #include <SDL2/SDL_vulkan.h>
 #endif
@@ -192,12 +193,18 @@ rg_array rg_window_get_required_vulkan_extensions(rg_window *window, unsigned in
 
     // Create an array with that number and fetch said extensions
     // We add the extra_array_size to allow the caller to add its own extensions at the end of the array
-    rg_array required_extensions = rg_create_array(required_extensions_count + extra_array_size, sizeof(char*));
+    rg_array required_extensions = rg_create_array_zeroed(required_extensions_count + extra_array_size, sizeof(char*));
 
     sdl_check(SDL_Vulkan_GetInstanceExtensions(window->sdl_window, &required_extensions_count, required_extensions.data));
 
+    // Convert that array to a rg_string array
+    rg_array string_array = rg_string_array_from_cstr_array(required_extensions.data, required_extensions.count);
+
+    // Free the first array
+    rg_destroy_array(&required_extensions);
+
     // Return the array
-    return required_extensions;
+    return string_array;
 }
 
 VkSurfaceKHR rg_window_get_vulkan_surface(rg_window *window, VkInstance vulkan_instance)

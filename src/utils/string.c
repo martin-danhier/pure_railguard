@@ -5,6 +5,11 @@
 
 rg_string rg_create_string_from_cstr(const char *cstr)
 {
+    if (cstr == NULL)
+    {
+        return RG_EMPTY_STRING;
+    }
+
     // Count the length of the string
     size_t len = 0;
     while (cstr[len] != '\0')
@@ -25,7 +30,7 @@ rg_string rg_create_string_from_cstr(const char *cstr)
 
 rg_string rg_clone_string(const rg_string string)
 {
-    // Do not malloc 0 bytes of memory in case of empty string
+    // Empty string: no need to malloc
     if (rg_string_is_empty(string))
     {
         return RG_EMPTY_STRING;
@@ -33,7 +38,7 @@ rg_string rg_clone_string(const rg_string string)
 
     // Copy the string into a new string
     rg_string clone = {
-        .data   = (char *) malloc(string.length),
+        .data   = (char *) malloc(string.length + 1),
         .length = string.length,
     };
     if (clone.data == NULL)
@@ -42,7 +47,7 @@ rg_string rg_clone_string(const rg_string string)
     }
 
     // Copy the string
-    void *new_data = memcpy(clone.data, string.data, string.length);
+    void *new_data = memcpy(clone.data, string.data, string.length + 1);
     if (new_data == NULL)
     {
         free(clone.data);
@@ -63,7 +68,7 @@ rg_string rg_string_concat(rg_string a, rg_string b)
     // Allocate memory for the new string. It will be greater than 0 since we know that they are not both empty.
     size_t    new_length = a.length + b.length;
     rg_string new_string = {
-        .data   = (char *) malloc(new_length),
+        .data   = (char *) malloc(new_length + 1),
         .length = new_length,
     };
     if (new_string.data == NULL)
@@ -82,8 +87,13 @@ rg_string rg_string_concat(rg_string a, rg_string b)
         ok = memcpy(new_string.data + a.length, b.data, b.length) != NULL;
     }
 
+    // Add the null terminator
+    if (ok)
+    {
+        new_string.data[new_length] = '\0';
+    }
     // If there was an error, free the memory and return an empty string
-    if (!ok)
+    else
     {
         free(new_string.data);
         return RG_EMPTY_STRING;
@@ -108,30 +118,6 @@ bool rg_string_equals(rg_string a, rg_string b)
 
     // Compare the contents of the strings
     return memcmp(a.data, b.data, a.length) == 0;
-}
-
-char *rg_string_to_cstr(rg_string string)
-{
-    // Even if the string is empty, we need to allocate memory
-    // This is because a c string will always have a null terminator
-    char *cstr = (char *) malloc(string.length + 1);
-    if (cstr == NULL)
-    {
-        return NULL;
-    }
-
-    // Copy the string
-    if (rg_string_is_empty(string))
-    {
-        cstr[0] = '\0';
-    }
-    else
-    {
-        memcpy(cstr, string.data, string.length);
-        cstr[string.length] = '\0';
-    }
-
-    return cstr;
 }
 
 ssize_t rg_string_find_char(rg_string string, char c)
@@ -186,4 +172,33 @@ rg_string rg_string_get_substring(rg_string string, size_t start, size_t end)
     }
 
     return RG_EMPTY_STRING;
+}
+
+rg_array rg_string_array_to_cstr_array(rg_string *strings, size_t length)
+{
+    // Allocate memory for the array
+    rg_array array = rg_create_array(length, sizeof(char *));
+
+
+    // Copy the strings into the array
+    for (size_t i = 0; i < length; i++)
+    {
+        ((char**) array.data)[i] = strings[i].data;
+    }
+
+    return array;
+}
+
+rg_array rg_string_array_from_cstr_array(const char * const *cstrs, size_t length)
+{
+    // Create new array
+    rg_array array = rg_create_array(length, sizeof(rg_string));
+
+    // Copy the strings into array.data
+    for (size_t i = 0; i < length; i++)
+    {
+        ((rg_string *) array.data)[i] = RG_CSTR(cstrs[i]);
+    }
+
+    return array;
 }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "arrays.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -19,16 +21,16 @@ typedef struct rg_string
 /** Creates a new rg_string from a C string. The length is computed at runtime. */
 #define RG_CSTR(s) rg_create_string_from_cstr((s))
 /** Creates a new rg_string from a const C string. The length is computed at compile time. */
-#define RG_CSTR_CONST(s)                                                      \
-    (rg_string)                                                               \
-    {                                                                         \
-        .data = sizeof(s) <= 1 ? NULL : (char *) (s), .length = sizeof(s) - 1 \
+#define RG_CSTR_CONST(s)                              \
+    (rg_string)                                       \
+    {                                                 \
+        .data = (char *) (s), .length = sizeof(s) - 1 \
     }
 
 #define RG_EMPTY_STRING RG_CSTR_CONST("")
 
-#define CONCAT_IMPL(a, b) a ## b
-#define CONCAT(a, b) CONCAT_IMPL(a, b)
+#define CONCAT_IMPL(a, b)  a##b
+#define CONCAT(a, b)       CONCAT_IMPL(a, b)
 #define RG_MACRO_VAR(name) CONCAT(name, __LINE__)
 
 /**
@@ -39,27 +41,7 @@ typedef struct rg_string
  * }
  * @endcode
  */
-#define DEFER(start, end)  for (int RG_MACRO_VAR(_i_) = ((start), 0); !RG_MACRO_VAR(_i_); (RG_MACRO_VAR(_i_) += 1, (end)))
-
-/**
- * @brief Converts the string s to a C string v. After the end of the block, v is freed.
- * @warning Since it is a block macro, you shouldn't use it in a unbraced block.
- * @example Good:
- * @code
- * if (condition) {
- *     RG_AS_CSTR(s, v) {
- *         // Do something with v
- *     }
- * }
- * @endcode
- * @example Bad:
- * @code
- * if (condition) RG_AS_CSTR(s, v) {
- *     // Since v is declared before the block, the block will be outside of the if
- * }
- * @endcode
- */
-#define RG_AS_CSTR(s, v) char* v = NULL; DEFER((v) = rg_string_to_cstr(s), free(v))
+#define DEFER(start, end) for (int RG_MACRO_VAR(_i_) = ((start), 0); !RG_MACRO_VAR(_i_); (RG_MACRO_VAR(_i_) += 1, (end)))
 
 // --=== Functions ===--
 
@@ -104,14 +86,6 @@ rg_string rg_string_concat(rg_string a, rg_string b);
 bool rg_string_equals(rg_string a, rg_string b);
 
 /**
- * Convert a rg_string to a C string (null terminated).
- * @param string the rg_string to convert.
- * @return a C string equivalent to the rg_string, or NULL if there is an error.
- * @warning The returned string must be freed.
- */
-char *rg_string_to_cstr(rg_string string);
-
-/**
  * Find the first occurrence of a character in a rg_string.
  * @param string the rg_string to search in.
  * @param c the character to find.
@@ -150,6 +124,8 @@ static inline char rg_string_get_char(rg_string string, size_t index)
  * @param end index of the last character of the substring.
  * @return a new rg_string containing the substring, or RG_EMPTY_STRING if the indices are out of bounds.
  * @warning The substring points to the same memory as the original rg_string, so it must not be freed.
+ * @warning The substring is not null-terminated because it points to the same memory as the original rg_string. If you need a
+ * null-terminated string, use rg_string_clone() to copy it.
  */
 rg_string rg_string_get_substring(rg_string string, size_t start, size_t end);
 
@@ -167,3 +143,13 @@ static inline size_t rg_string_end(rg_string string)
 
     return string.length - 1;
 }
+
+/**
+ * Converts an array of rg_string to an array of C strings.
+ * @param strings the array of rg_string to convert.
+ * @param length the length of the array.
+ * @return an array of C strings, or NULL if there is an error.
+ */
+rg_array rg_string_array_to_cstr_array(rg_string *strings, size_t length);
+
+rg_array rg_string_array_from_cstr_array(const char * const *cstrs, size_t length);
