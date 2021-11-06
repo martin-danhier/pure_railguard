@@ -87,11 +87,6 @@ rg_window *rg_create_window(rg_extent_2d extent, const char *title)
                                           (int32_t) extent.height,
                                           windowFlags);
 
-    if (window->sdl_window == NULL)
-    {
-        printf("Couldn't create window.");
-    }
-
     // If one of the created fields is NULL, free everything and return NULL
     if (window->resize_event == NULL || window->sdl_window == NULL)
     {
