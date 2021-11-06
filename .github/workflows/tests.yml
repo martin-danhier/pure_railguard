@@ -62,4 +62,3 @@ jobs:
       with:
         working-directory: ./build
         run: ./bin/unit_tests
-      
