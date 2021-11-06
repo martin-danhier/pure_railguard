@@ -6,6 +6,8 @@
 
 // --=== Hash map ===--
 
+// region Hash Map
+
 #define RG_HASH_MAP_NULL_KEY 0
 
 /**
@@ -23,10 +25,10 @@ typedef union
 
 typedef struct rg_hash_map_it
 {
-    rg_hash_map_key_t key;
+    rg_hash_map_key_t   key;
     rg_hash_map_value_t value;
     rg_hash_map        *hash_map;
-    size_t              current_index;
+    size_t              next_index;
 } rg_hash_map_it;
 
 typedef struct rg_hash_map_get_result
@@ -45,6 +47,14 @@ void                   rg_hash_map_erase(rg_hash_map *hash_map, rg_hash_map_key_
 rg_hash_map_it         rg_hash_map_iterator(rg_hash_map *hash_map);
 bool                   rg_hash_map_next(rg_hash_map_it *it);
 
+#ifdef UNIT_TESTS
+uint64_t rg_hash_map_hash(uint64_t key);
+#endif
+
+// endregion
+
+// region Struct Map
+
 // --=== Struct map ===--
 
 /**
@@ -58,9 +68,9 @@ typedef struct rg_struct_map rg_struct_map;
 typedef struct rg_struct_map_it
 {
     rg_hash_map_key_t key;
-    void          *value;
-    size_t         next_index;
-    rg_struct_map *struct_map;
+    void             *value;
+    size_t            next_index;
+    rg_struct_map    *struct_map;
 } rg_struct_map_it;
 
 /**
@@ -92,3 +102,5 @@ void             rg_struct_map_erase(rg_struct_map *struct_map, rg_hash_map_key_
 rg_struct_map_it rg_struct_map_iterator(rg_struct_map *struct_map);
 bool             rg_struct_map_next(rg_struct_map_it *it);
 bool             rg_struct_map_exists(rg_struct_map *struct_map, rg_hash_map_key_t key);
+
+// endregion

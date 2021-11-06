@@ -66,4 +66,8 @@ void rg_renderer_add_window(rg_renderer *renderer, uint32_t window_index, rg_win
  */
 rg_shader_id rg_renderer_load_shader(rg_renderer *renderer, rg_string shader_path);
 
-void rg_destroy_renderer(rg_renderer **renderer, rg_window *window);
+/**
+ * Destroys the renderer and cleans up all resources.
+ * @param renderer The renderer to destroy.
+ */
+void rg_destroy_renderer(rg_renderer **renderer);

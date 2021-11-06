@@ -75,6 +75,9 @@ bool rg_mem_watcher_init(void)
         return false;
     }
 
+    // Initialize the locked flag
+    watcher->locked = false;
+
     // Set the watcher
     RG_MEMORY_WATCHER = watcher;
     return true;
@@ -118,6 +121,7 @@ bool rg_mem_watcher_print_leaks(void)
         return true;
     }
 
+
     // There are still un-freed allocations, print them
     if (allocations_count > 0)
     {
@@ -136,6 +140,7 @@ bool rg_mem_watcher_print_leaks(void)
                    allocation->base);
         }
     }
+
 
     // Segfaults were prevented, print them
     if (prevented_segfaults_count > 0)

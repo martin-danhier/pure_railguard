@@ -1,9 +1,6 @@
 #include "railguard/utils/storage.h"
 
-#include <railguard/utils/maps.h>
 #include <railguard/utils/memory.h>
-
-#include <stdlib.h>
 
 // region Storage
 
@@ -104,7 +101,7 @@ rg_storage_it rg_storage_iterator(rg_storage *storage)
 {
     if (storage == NULL)
     {
-        return (rg_storage_it) {};
+        return (rg_storage_it) {0};
     }
 
     return (rg_storage_it) {
@@ -165,7 +162,7 @@ bool rg_storage_exists(rg_storage *storage, rg_storage_id id)
 typedef struct rg_handle_storage
 {
     rg_storage_id id_counter;
-    rg_hash_map *map;
+    rg_hash_map  *map;
 } rg_handle_storage;
 
 // --=== Functions ===--
@@ -221,7 +218,7 @@ rg_storage_id rg_handle_storage_push(rg_handle_storage *storage, void *handle)
 
     // Add the storage entry to the map.
     // This will copy the handle into the map's internal buffer.
-    if (rg_hash_map_set(storage->map, id, (rg_hash_map_value_t) handle) == false)
+    if (rg_hash_map_set(storage->map, id, (rg_hash_map_value_t) {.as_ptr = handle}) == false)
     {
         storage->id_counter--;
         return RG_STORAGE_NULL_ID;
@@ -249,7 +246,7 @@ rg_handle_storage_get_result rg_handle_storage_get(rg_handle_storage *storage, r
     }
 
     return (rg_handle_storage_get_result) {
-        .value = get_result.value.as_ptr,
+        .value  = get_result.value.as_ptr,
         .exists = true,
     };
 }
@@ -269,7 +266,7 @@ rg_handle_storage_it rg_handle_storage_iterator(rg_handle_storage *storage)
 {
     if (storage == NULL)
     {
-        return (rg_handle_storage_it) {};
+        return (rg_handle_storage_it) {0};
     }
 
     return (rg_handle_storage_it) {

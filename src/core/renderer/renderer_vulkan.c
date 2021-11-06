@@ -2,8 +2,6 @@
 #ifdef RENDERER_VULKAN
 
 #include "railguard/core/renderer.h"
-#include <railguard/core/window.h>
-#include <railguard/utils/arrays.h>
 #include <railguard/utils/event_sender.h>
 #include <railguard/utils/storage.h>
 
@@ -13,6 +11,7 @@
 #include <volk.h>
 // Needs to be after volk
 #include <railguard/utils/io.h>
+#include <railguard/utils/memory.h>
 
 #include <vk_mem_alloc.h>
 
@@ -307,15 +306,14 @@ bool rg_renderer_check_layer_support(rg_string *desired_layers, uint32_t desired
  * @param user_data User data passed to the debug messenger
  * @return
  */
-VKAPI_ATTR VkBool32 VKAPI_CALL *rg_renderer_debug_messenger_callback(VkDebugUtilsMessageSeverityFlagBitsEXT      message_severity,
-                                                                     VkDebugUtilsMessageTypeFlagsEXT             message_types,
-                                                                     const VkDebugUtilsMessengerCallbackDataEXT *callback_data,
-                                                                     void                                       *user_data)
+VkBool32 *rg_renderer_debug_messenger_callback(VkDebugUtilsMessageSeverityFlagBitsEXT      message_severity,
+                                               VkDebugUtilsMessageTypeFlagsEXT             message_types,
+                                               const VkDebugUtilsMessengerCallbackDataEXT *callback_data)
 {
     // Inspired by VkBootstrap's default debug messenger. (Made by Charles Giessen)
 
     // Get severity
-    char *str_severity;
+    char *str_severity = NULL;
     switch (message_severity)
     {
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT: str_severity = "VERBOSE"; break;
@@ -408,7 +406,7 @@ VkSurfaceFormatKHR rg_select_surface_format(rg_renderer *renderer, rg_window *wi
 {
     // Get surface
     VkSurfaceKHR       surface        = rg_window_get_vulkan_surface(window, renderer->instance);
-    VkSurfaceFormatKHR surface_format = {};
+    VkSurfaceFormatKHR surface_format = {VK_FORMAT_UNDEFINED, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
 
     // Get the available formats
     uint32_t available_format_count = 0;
@@ -434,7 +432,7 @@ VkSurfaceFormatKHR rg_select_surface_format(rg_renderer *renderer, rg_window *wi
     bool found = false;
     for (uint32_t i = 0; i < available_format_count && !found; i++)
     {
-        VkSurfaceFormatKHR *available_format = available_formats.data + (i * sizeof(VkSurfaceFormatKHR));
+        VkSurfaceFormatKHR *available_format = ((VkSurfaceFormatKHR *) available_formats.data) + i;
 
         for (uint32_t j = 0; j < DESIRED_FORMAT_COUNT && !found; j++)
         {
@@ -566,7 +564,9 @@ rg_allocated_image rg_renderer_create_image(VmaAllocator          allocator,
                                             VmaMemoryUsage        memory_usage)
 {
     // We use VMA for now. We can always switch to a custom allocator later if we want to.
-    rg_allocated_image image = {};
+    rg_allocated_image image = {
+        VK_NULL_HANDLE,
+    };
 
     rg_renderer_check(image_extent.width >= 1 && image_extent.height >= 1 && image_extent.depth >= 1,
                       "Tried to create an image with an invalid extent. The extent must be at least 1 in each dimension.");
@@ -677,7 +677,7 @@ void rg_init_swapchain_inner(rg_renderer *renderer, rg_swapchain *swapchain, rg_
     // Get the images
     uint32_t effective_image_count = 0;
     vkGetSwapchainImagesKHR(renderer->device, swapchain->vk_swapchain, &effective_image_count, VK_NULL_HANDLE);
-    swapchain->swapchain_images = malloc(sizeof(VkImage) * effective_image_count);
+    swapchain->swapchain_images = rg_malloc(sizeof(VkImage) * effective_image_count);
     vkGetSwapchainImagesKHR(renderer->device, swapchain->vk_swapchain, &effective_image_count, swapchain->swapchain_images);
 
     // Update the image count based on how many were effectively created
@@ -708,7 +708,7 @@ void rg_init_swapchain_inner(rg_renderer *renderer, rg_swapchain *swapchain, rg_
     };
 
     // Allocate memory for it
-    swapchain->swapchain_image_views = malloc(sizeof(VkImageView) * swapchain->image_count);
+    swapchain->swapchain_image_views = rg_malloc(sizeof(VkImageView) * swapchain->image_count);
 
     // Create the image views
     for (uint32_t i = 0; i < swapchain->image_count; i++)
@@ -740,7 +740,7 @@ void rg_init_swapchain_inner(rg_renderer *renderer, rg_swapchain *swapchain, rg_
 
     // region Framebuffers creation
 
-    swapchain->swapchain_image_framebuffers = malloc(sizeof(VkFramebuffer) * swapchain->image_count);
+    swapchain->swapchain_image_framebuffers = rg_malloc(sizeof(VkFramebuffer) * swapchain->image_count);
 
     VkFramebufferCreateInfo framebuffer_create_info = {
         .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
@@ -767,7 +767,7 @@ void rg_renderer_add_window(rg_renderer *renderer, uint32_t window_index, rg_win
     rg_renderer_check(window_index < renderer->swapchains.count, "Swapchain index out of range.");
 
     // Get the swapchain in the renderer
-    rg_swapchain *swapchain = renderer->swapchains.data + (window_index * sizeof(rg_swapchain));
+    rg_swapchain *swapchain = ((rg_swapchain *) renderer->swapchains.data) + window_index;
 
     // Ensure that there is not a live swapchain here already
     rg_renderer_check(!swapchain->enabled,
@@ -835,7 +835,7 @@ void rg_renderer_add_window(rg_renderer *renderer, uint32_t window_index, rg_win
     // region Image count selection
 
     // Check the surface capabilities
-    VkSurfaceCapabilitiesKHR surface_capabilities = {};
+    VkSurfaceCapabilitiesKHR surface_capabilities = {0};
     vk_check(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(renderer->physical_device, swapchain->surface, &surface_capabilities), NULL);
 
     // For the image count, take the minimum plus one. Or, if the minimum is equal to the maximum, take that value.
@@ -905,8 +905,9 @@ void rg_destroy_swapchain_inner(rg_swapchain *swapchain)
     swapchain->vk_swapchain = VK_NULL_HANDLE;
 
     // Clean the arrays
-    free(swapchain->swapchain_image_views);
-    free(swapchain->swapchain_images);
+    rg_free(swapchain->swapchain_image_framebuffers);
+    rg_free(swapchain->swapchain_image_views);
+    rg_free(swapchain->swapchain_images);
 }
 
 void rg_destroy_swapchain(rg_swapchain *swapchain)
@@ -928,7 +929,7 @@ void rg_renderer_recreate_swapchain(rg_swapchain *swapchain, rg_extent_2d new_ex
 {
     // Ensure that there is a swapchain to recreate
     rg_renderer_check(swapchain->enabled,
-                      "Attempted to recreate an nonexisting swapchain. "
+                      "Attempted to recreate an non-existing swapchain. "
                       "Use rg_renderer_add_window to create a new one instead.");
 
     rg_renderer *renderer = swapchain->renderer;
@@ -961,6 +962,11 @@ rg_shader_id rg_renderer_load_shader(rg_renderer *renderer, rg_string shader_pat
     };
     VkShaderModule module = VK_NULL_HANDLE;
     vk_check(vkCreateShaderModule(renderer->device, &shader_module_create_info, NULL, &module), "Couldn't create shader module");
+
+    // Free the code
+    if (code != NULL) {
+        rg_free(code);
+    }
 
     // Save it in map
     rg_shader_id shader_id = rg_handle_storage_push(renderer->shaders, module);
@@ -1039,7 +1045,7 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
     // Create a renderer in the heap
     // This is done to keep the renderer opaque in the header
     // Use calloc to set all bytes to 0
-    rg_renderer *renderer = calloc(1, sizeof(rg_renderer));
+    rg_renderer *renderer = rg_calloc(1, sizeof(rg_renderer));
     if (renderer == NULL)
     {
         return NULL;
@@ -1287,8 +1293,8 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
 
     // Create geometric render pass
 
-    VkAttachmentReference   attachment_references[3] = {};
-    VkAttachmentDescription attachments[3]           = {};
+    VkAttachmentReference   attachment_references[3] = {0};
+    VkAttachmentDescription attachments[3]           = {{0}, {0}, {0}};
 
     // Position color buffer
     attachments[0] = (VkAttachmentDescription) {
@@ -1376,7 +1382,7 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
     return renderer;
 }
 
-void rg_destroy_renderer(rg_renderer **renderer, rg_window *window)
+void rg_destroy_renderer(rg_renderer **renderer)
 {
     // Clear shaders
     rg_renderer_clear_shaders(*renderer);
@@ -1384,12 +1390,15 @@ void rg_destroy_renderer(rg_renderer **renderer, rg_window *window)
     // Destroy swapchains
     for (uint32_t i = 0; i < (*renderer)->swapchains.count; i++)
     {
-        rg_swapchain *swapchain = (*renderer)->swapchains.data + (i * sizeof(rg_swapchain));
+        rg_swapchain *swapchain = ((rg_swapchain *) (*renderer)->swapchains.data) + i;
         if (swapchain->enabled)
         {
             rg_destroy_swapchain(swapchain);
         }
     }
+
+    // Destroy swapchain array
+    rg_destroy_array(&(*renderer)->swapchains);
 
     // Destroy render passes
     vkDestroyRenderPass((*renderer)->device, (*renderer)->passes.geometry_pass, NULL);
@@ -1409,7 +1418,7 @@ void rg_destroy_renderer(rg_renderer **renderer, rg_window *window)
     vkDestroyInstance((*renderer)->instance, NULL);
 
     // Free the renderer
-    free(*renderer);
+    rg_free(*renderer);
 
     // Since we took a double pointer in parameter, we can also set it to null
     // Thus, the user doesn't have to do it themselves

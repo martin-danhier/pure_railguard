@@ -6,7 +6,7 @@
 TEST(Vector)
 {
     // Creation
-    rg_vector vec = {};
+    rg_vector vec = {0};
     rg_create_vector(4, sizeof(uint32_t), &vec);
     EXPECT_NOT_NULL(vec.data);
     EXPECT_TRUE(vec.capacity == 4);
@@ -124,11 +124,11 @@ TEST(Vector)
     // Try again using only the data array (check location in memory)
     for (uint32_t idx = 0; idx < vec.count - 1; idx++)
     {
-        res = vec.data + (idx * sizeof(uint32_t));
+        res = ((uint32_t *) vec.data) + idx;
         EXPECT_NOT_NULL(res);
         EXPECT_TRUE(*res == values[idx]);
     }
-    res = vec.data + ((vec.count - 1) * sizeof(uint32_t));
+    res = ((uint32_t *) vec.data) + ((vec.count - 1));
     EXPECT_NOT_NULL(res);
     EXPECT_TRUE(*res == 42);
 
@@ -147,15 +147,15 @@ TEST(Vector)
     rg_vector_set_element(&vec, 2, &value);
     value = 67;
     rg_vector_set_element(&vec, 13, &value);
-    EXPECT_TRUE(*(uint32_t *) (vec.data + 22 * sizeof(uint32_t)) == 873287343);
-    EXPECT_TRUE(*(uint32_t *) (vec.data + 2 * sizeof(uint32_t)) == 3);
-    EXPECT_TRUE(*(uint32_t *) (vec.data + 13 * sizeof(uint32_t)) == 67);
+    EXPECT_TRUE(*(((uint32_t *) vec.data) + 22) == 873287343);
+    EXPECT_TRUE(*(((uint32_t *) vec.data) + 2) == 3);
+    EXPECT_TRUE(*(((uint32_t *) vec.data) + 13) == 67);
 
     // Copy elem 13 in slot 2
     EXPECT_TRUE(rg_vector_copy(&vec, 13, 2));
     // 13 should not be modified
-    EXPECT_TRUE(*(uint32_t *) (vec.data + 13 * sizeof(uint32_t)) == 67);
-    EXPECT_TRUE(*(uint32_t *) (vec.data + 2 * sizeof(uint32_t)) == 67);
+    EXPECT_TRUE(*(((uint32_t *) vec.data) + 13) == 67);
+    EXPECT_TRUE(*(((uint32_t *) vec.data) + 2) == 67);
 
     // Clear
     // It shouldn't deallocate the data, only allow them to be overwritten by new pushes
@@ -168,7 +168,7 @@ TEST(Vector)
 
     // Ensure that a new push is added at the beginning
     value = 789678;
-    res = rg_vector_push_back(&vec, &value);
+    res   = rg_vector_push_back(&vec, &value);
     EXPECT_NOT_NULL(res);
     EXPECT_TRUE(*(uint32_t *) vec.data == 789678);
     EXPECT_TRUE(vec.count == 1);

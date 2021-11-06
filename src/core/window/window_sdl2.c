@@ -186,6 +186,13 @@ void rg_window_resize_event_unsubscribe(rg_window *window, rg_event_handler_id h
 #ifdef RENDERER_VULKAN
 rg_array rg_window_get_required_vulkan_extensions(rg_window *window, unsigned int extra_array_size)
 {
+    if (window == NULL) {
+        return (rg_array) {
+            .count = 0,
+            .data = NULL
+        };
+    }
+
     // Get the number of required extensions
     uint32_t required_extensions_count = 0;
 

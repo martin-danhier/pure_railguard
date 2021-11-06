@@ -2,7 +2,6 @@
 
 #include <railguard/utils/memory.h>
 
-#include <stdlib.h>
 #include <string.h>
 
 rg_string rg_create_string_from_cstr(const char *cstr)
@@ -153,14 +152,14 @@ bool rg_string_equals(rg_string a, rg_string b)
     return memcmp(a.data, b.data, a.length) == 0;
 }
 
-ssize_t rg_string_find_char(rg_string string, char c)
+size_t rg_string_find_char(rg_string string, char c)
 {
     if (rg_string_is_empty(string)) {
         return -1;
     }
 
     // Find the first occurrence of the character
-    for (ssize_t i = 0; i < string.length; i++)
+    for (size_t i = 0; i < string.length; i++)
     {
         if (string.data[i] == c)
         {
@@ -172,14 +171,14 @@ ssize_t rg_string_find_char(rg_string string, char c)
     return -1;
 }
 
-ssize_t rg_string_find_char_reverse(rg_string string, char c)
+size_t rg_string_find_char_reverse(rg_string string, char c)
 {
     if (rg_string_is_empty(string)) {
         return -1;
     }
 
     // Find the last occurrence of the character
-    for (ssize_t i = (ssize_t) string.length; i > 0; i--)
+    for (size_t i = (size_t) string.length; i > 0; i--)
     {
         if (string.data[i - 1] == c)
         {

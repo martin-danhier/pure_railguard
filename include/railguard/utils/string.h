@@ -99,7 +99,7 @@ bool rg_string_equals(rg_string a, rg_string b);
  * @param c the character to find.
  * @return the index of the first occurrence of c in string, or -1 if c is not found.
  */
-ssize_t rg_string_find_char(rg_string string, char c);
+size_t rg_string_find_char(rg_string string, char c);
 
 /**
  * Find the last occurrence of a character in a rg_string.
@@ -107,7 +107,7 @@ ssize_t rg_string_find_char(rg_string string, char c);
  * @param c the character to find.
  * @return the index of the last occurrence of c in string, or -1 if c is not found.
  */
-ssize_t rg_string_find_char_reverse(rg_string string, char c);
+size_t rg_string_find_char_reverse(rg_string string, char c);
 
 /**
  * Gets the character at the given index in a rg_string.

@@ -11,17 +11,48 @@
 
 // --- Macros ---
 
+// Define equivalent of __attribute__((constructor)) for non-GNU compilers.
+// https://stackoverflow.com/questions/1113409/attribute-constructor-equivalent-in-vc
+#ifdef __cplusplus
+#define INITIALIZER(f)   \
+    static void f(void); \
+    struct f##_t_        \
+    {                    \
+        f##_t_(void)     \
+        {                \
+            f();         \
+        }                \
+    };                   \
+    static f##_t_ f##_;  \
+    static void   f(void)
+#elif defined(_MSC_VER)
+#pragma section(".CRT$XCU", read)
+#define INITIALIZER2_(f, p)                                  \
+    static void f(void);                                     \
+    __declspec(allocate(".CRT$XCU")) void (*f##_)(void) = f; \
+    __pragma(comment(linker, "/include:" p #f "_")) static void f(void)
+#ifdef _WIN64
+#define INITIALIZER(f) INITIALIZER2_(f, "")
+#else
+#define INITIALIZER(f) INITIALIZER2_(f, "_")
+#endif
+#else
+#define INITIALIZER(f)                                \
+    static void f(void) __attribute__((constructor)); \
+    static void f(void)
+#endif
+
 // First macro: add the counter macro
-#define TEST(test_name) _TF_TEST1(test_name, __COUNTER__)
+#define TEST(test_name) TF_TEST1(test_name, __COUNTER__)
 // Second: get the value of the counter
-#define _TF_TEST1(test_name, id) _TF_TEST2(test_name, id)
+#define TF_TEST1(test_name, id) TF_TEST2(test_name, id)
 // Third: generate the function definition and register it
-#define _TF_TEST2(test_name, id)                                                                \
-    void                                  __test_##test_name##_##id(tf_context *___context___); \
-    __attribute__((__constructor__)) void __pretest_init_##test_name##_##id()                   \
-    {                                                                                           \
-        tf_register_test(#test_name, &__test_##test_name##_##id);                               \
-    }                                                                                           \
+#define TF_TEST2(test_name, id)                                  \
+    void __test_##test_name##_##id(tf_context *___context___);    \
+    INITIALIZER(__pretest_init_##test_name##_##id)                \
+    {                                                             \
+        tf_register_test(#test_name, &__test_##test_name##_##id); \
+    }                                                             \
     void __test_##test_name##_##id(tf_context *___context___)
 
 // Macro to run all tests
@@ -63,7 +94,7 @@ typedef void (*tf_test_function)(tf_context *);
 
 // --- Functions ---
 
-int tf_main(const char* test_name);
+int tf_main(const char *test_name);
 
 void tf_register_test(const char *name, tf_test_function pfn_test);
 

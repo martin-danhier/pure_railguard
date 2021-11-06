@@ -135,7 +135,7 @@ TEST(String)
     EXPECT_TRUE(empty_cstr[0] == '\0');
 
     // Test find functions
-    ssize_t i = rg_string_find_char(s, 'l');
+    size_t i = rg_string_find_char(s, 'l');
     EXPECT_TRUE(i == 2);
     i = rg_string_find_char(s, 'p');
     EXPECT_TRUE(i == -1);
@@ -210,7 +210,4 @@ TEST(String)
     rg_free(s4.data);
     rg_free(s5.data);
     rg_free(s6.data);
-
-
-
 }

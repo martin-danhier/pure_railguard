@@ -15,7 +15,7 @@
 // Entry point for the tests
 int main(void)
 {
-    int result = 0;
+    int result;
 
 #ifdef MEMORY_CHECKS
     // Initialize the memory watcher
@@ -26,10 +26,12 @@ int main(void)
     result = RUN_ALL_TESTS();
 
 #ifdef MEMORY_CHECKS
+
     // Print the results of the memory watcher
     if (!rg_mem_watcher_print_leaks()) {
         result = 1;
     }
+
 
     // Cleanup the memory watcher
     rg_mem_watcher_cleanup();

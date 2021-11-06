@@ -9,14 +9,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef WIN64
+
+
+// If WIN32 or _WIN32 or WIN64 or _WIN64 is defined, we are on a Windows platform.
+#if WIN32 || _WIN32 || WIN64 || _WIN64
 #include <windows.h>
 #endif
 
 // Macros
 
 // On Windows, without Windows Terminal, ANSI color codes are not supported
-#ifdef WIN64
+#if WIN32 || _WIN32 || WIN64 || _WIN64
 
 // On Windows, we need to store the previous color in order to reset it
 HANDLE TF_CONSOLE_HANDLE          = 0;
@@ -27,7 +30,7 @@ WORD   TF_DEFAULT_COLOR_ATTRIBUTE = 0;
     do                                                                            \
     {                                                                             \
         TF_CONSOLE_HANDLE                      = GetStdHandle(STD_OUTPUT_HANDLE); \
-        CONSOLE_SCREEN_BUFFER_INFO consoleInfo = {};                              \
+        CONSOLE_SCREEN_BUFFER_INFO consoleInfo = {0};                              \
         GetConsoleScreenBufferInfo(TF_CONSOLE_HANDLE, &consoleInfo);              \
         TF_DEFAULT_COLOR_ATTRIBUTE = consoleInfo.wAttributes;                     \
     } while (0)
@@ -317,6 +320,15 @@ bool tf_manager_run_all_tests(tf_test_manager *manager)
         }
     }
 
+    // Get the number of digits of the last test index
+    size_t last_test_index = manager->registered_tests.count;
+    size_t digits = 1;
+    while (last_test_index >= 10)
+    {
+        last_test_index /= 10;
+        digits++;
+    }
+
     // For each test
     it = tf_linked_list_iterator(&manager->registered_tests);
     while (tf_linked_list_next(&it))
@@ -325,7 +337,24 @@ bool tf_manager_run_all_tests(tf_test_manager *manager)
 
         // Print progress
         TF_FORMAT_BOLD;
-        printf("[Test %llu/%llu] \"%s\"", it.index + 1, manager->registered_tests.count, current_test->name);
+        printf("[Test ");
+
+        // Count digits of index
+        size_t index_digits = 1;
+        size_t index = it.index + 1;
+        while (index >= 10)
+        {
+            index /= 10;
+            index_digits++;
+        }
+
+        // Print index
+        for (size_t i = 0; i < digits - index_digits; i++)
+        {
+            printf(" ");
+        }
+
+        printf("%llu/%llu] \"%s\"", it.index + 1, manager->registered_tests.count, current_test->name);
         TF_FORMAT_RESET;
 
         // Init its context
@@ -477,7 +506,7 @@ bool tf_assert_null(tf_context *context, size_t line_number, const char *file, v
 }
 // Global
 
-tf_test_manager TF_MANAGER = {};
+tf_test_manager TF_MANAGER = {0};
 
 void tf_register_test(const char *name, tf_test_function pfn_test)
 {

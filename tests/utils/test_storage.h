@@ -66,8 +66,8 @@ TEST(Storage)
     EXPECT_TRUE(rg_storage_exists(storage, id3));
 
     // Check if all the data is located in a packed array
-    EXPECT_TRUE(data2 == ((void*) data1) + sizeof(rg_test_storage_data) + sizeof(rg_hash_map_key_t));
-    EXPECT_TRUE(data3 == ((void*) data2) + sizeof(rg_test_storage_data) + sizeof(rg_hash_map_key_t));
+    EXPECT_TRUE((char*) data2 == ((char*) data1) + sizeof(rg_test_storage_data) + sizeof(rg_hash_map_key_t));
+    EXPECT_TRUE((char*) data3 == ((char*) data2) + sizeof(rg_test_storage_data) + sizeof(rg_hash_map_key_t));
 
     // Try to get data that does not exist
     rg_test_storage_data *invalid_data = rg_storage_get(storage, 0xDEADBEEF);
@@ -149,24 +149,27 @@ TEST(HandleStorage) {
     ASSERT_NOT_NULL(storage);
 
     // Add data
-    rg_storage_id id1 = rg_handle_storage_push(storage, (void *) 0xDEADBEEF);
+    uint32_t v = 0xDEADBEEF;
+    uint32_t u = 0xCAFEBABE;
+
+    rg_storage_id id1 = rg_handle_storage_push(storage, &v);
     EXPECT_TRUE(id1 != RG_STORAGE_NULL_ID);
     EXPECT_TRUE(rg_handle_storage_count(storage) == 1);
 
     // Get data
     rg_handle_storage_get_result get_result = rg_handle_storage_get(storage, id1);
     ASSERT_TRUE(get_result.exists);
-    EXPECT_TRUE(get_result.value == (void *) 0xDEADBEEF);
+    EXPECT_TRUE(get_result.value == &v);
 
     // Add more data
-    rg_storage_id id2 = rg_handle_storage_push(storage, (void *) 0xCAFEBABE);
+    rg_storage_id id2 = rg_handle_storage_push(storage, &u);
     EXPECT_TRUE(id2 != RG_STORAGE_NULL_ID);
     EXPECT_TRUE(rg_handle_storage_count(storage) == 2);
 
     // Get data
     get_result = rg_handle_storage_get(storage, id2);
     ASSERT_TRUE(get_result.exists);
-    EXPECT_TRUE(get_result.value == (void *) 0xCAFEBABE);
+    EXPECT_TRUE(get_result.value == &u);
 
     // Try to get data that does not exist
     rg_handle_storage_get_result get_result2 = rg_handle_storage_get(storage, 0xDEADBEEF);

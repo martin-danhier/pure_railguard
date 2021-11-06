@@ -36,7 +36,7 @@ TEST(EventSender)
     ASSERT_NOT_NULL(event_sender);
 
     // Create a struct so that we can see if the listeners were called.
-    rg_test_event_sender_user_data user_data = {};
+    rg_test_event_sender_user_data user_data = {0};
 
     // Register listeners.
     rg_event_handler_id handler1 =
