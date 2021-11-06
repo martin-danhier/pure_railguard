@@ -61,4 +61,4 @@ jobs:
       uses: GabrielBB/xvfb-action@v1
       with:
         working-directory: ./build
-        run: ./bin/unit_tests
+        run: ./unit_tests
