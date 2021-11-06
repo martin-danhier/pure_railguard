@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #ifdef RENDERER_VULKAN
 #include <railguard/utils/event_sender.h>
+#include <railguard/utils/string.h>
 
 #include <SDL2/SDL_vulkan.h>
 #endif
@@ -62,6 +63,11 @@ rg_window *rg_create_window(rg_extent_2d extent, const char *title)
 
     // Init event senders
     window->resize_event = rg_create_event_sender();
+    if (window->resize_event == NULL)
+    {
+        free(window);
+        return NULL;
+    }
 
     // Save other info
     window->extent = extent;
@@ -168,18 +174,25 @@ rg_extent_2d rg_window_get_current_extent(rg_window *window) {
 
 // Resize event
 
-bool rg_window_resize_event_subscribe(rg_window *window, const char *handler_name, rg_event_handler handler)
+rg_event_handler_id rg_window_resize_event_subscribe(rg_window *window, rg_event_handler handler)
 {
-    return rg_event_sender_register_listener(window->resize_event, handler_name, handler);
+    return rg_event_sender_register_listener(window->resize_event, handler);
 }
 
-void rg_window_resize_event_unsubscribe(rg_window *window, const char* handler_name) {
-    rg_event_sender_unregister_listener(window->resize_event, handler_name);
+void rg_window_resize_event_unsubscribe(rg_window *window, rg_event_handler_id handler_id) {
+    rg_event_sender_unregister_listener(window->resize_event, handler_id);
 }
 
 #ifdef RENDERER_VULKAN
 rg_array rg_window_get_required_vulkan_extensions(rg_window *window, unsigned int extra_array_size)
 {
+    if (window == NULL) {
+        return (rg_array) {
+            .count = 0,
+            .data = NULL
+        };
+    }
+
     // Get the number of required extensions
     uint32_t required_extensions_count = 0;
 
@@ -187,12 +200,18 @@ rg_array rg_window_get_required_vulkan_extensions(rg_window *window, unsigned in
 
     // Create an array with that number and fetch said extensions
     // We add the extra_array_size to allow the caller to add its own extensions at the end of the array
-    rg_array required_extensions = rg_create_array(required_extensions_count + extra_array_size, sizeof(char*));
+    rg_array required_extensions = rg_create_array_zeroed(required_extensions_count + extra_array_size, sizeof(char*));
 
     sdl_check(SDL_Vulkan_GetInstanceExtensions(window->sdl_window, &required_extensions_count, required_extensions.data));
 
+    // Convert that array to a rg_string array
+    rg_array string_array = rg_string_array_from_cstr_array(required_extensions.data, required_extensions.count);
+
+    // Free the first array
+    rg_destroy_array(&required_extensions);
+
     // Return the array
-    return required_extensions;
+    return string_array;
 }
 
 VkSurfaceKHR rg_window_get_vulkan_surface(rg_window *window, VkInstance vulkan_instance)

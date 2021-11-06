@@ -1,5 +1,7 @@
 #pragma once
 
+#include <railguard/utils/string.h>
+
 #include <stdint.h>
 
 // --==== Types ====--
@@ -22,6 +24,7 @@ typedef struct rg_renderer rg_renderer;
 // Also forward declare the window type to avoid include
 typedef struct rg_window    rg_window;
 typedef struct rg_extent_2d rg_extent_2d;
+typedef uint32_t rg_shader_id;
 
 // --==== Defines ====--
 
@@ -58,9 +61,13 @@ void rg_renderer_add_window(rg_renderer *renderer, uint32_t window_index, rg_win
 /**
  * Loads a shader from the given file. The language of the shader depends on the used backend.
  * @param renderer Handle to the renderer.
- * @param shader_name Name of the shader that will be used to identify it. Must be unique.
  * @param shader_path Path of the shader file.
+ * @return The id of the created shader.
  */
-void rg_renderer_load_shader(rg_renderer *renderer, const char *shader_name, const char *shader_path);
+rg_shader_id rg_renderer_load_shader(rg_renderer *renderer, rg_string shader_path);
 
-void rg_destroy_renderer(rg_renderer **renderer, rg_window *window);
+/**
+ * Destroys the renderer and cleans up all resources.
+ * @param renderer The renderer to destroy.
+ */
+void rg_destroy_renderer(rg_renderer **renderer);

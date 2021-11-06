@@ -8,28 +8,25 @@
 #define TEST_TEXT_CONTENT "This is a file containing test text."
 #define TEST_TEXT_SIZE 36
 
-TEST(IO) {
+TEST(FileIO) {
     // Test reading a file
     char *contents = NULL;
     size_t length = 0;
-    bool result = rg_load_file_binary("resources/test.txt", (void **) &contents, &length);
-
-    // Add null char because strcmp needs it, and it is not loaded by the function since we are in binary mode
-    char *contents_str = malloc(length + 1);
-    memcpy(contents_str, contents, length);
-    contents_str[length] = '\0';
+    bool result = rg_load_file_binary(RG_CSTR_CONST("resources/test.txt"), (void **) &contents, &length);
 
     ASSERT_TRUE(result);
-    ASSERT_TRUE(strcmp(contents_str, TEST_TEXT_CONTENT) == 0);
-    ASSERT_TRUE(length == TEST_TEXT_SIZE);
+    rg_string contents_str = rg_create_string_from_buffer(contents, length);
+    EXPECT_TRUE(rg_string_equals(contents_str, RG_CSTR_CONST(TEST_TEXT_CONTENT)));
+    EXPECT_TRUE(length == TEST_TEXT_SIZE);
 
     // Free memory
-    free(contents);
-    free(contents_str);
+    rg_free(contents);
     contents = NULL;
-    contents_str = NULL;
+    rg_free(contents_str.data);
+    contents_str.data = NULL;
 
     // A nonexisting file returns false
-    result = rg_load_file_binary("resources/nonexisting.txt", (void **) &contents, &length);
-    ASSERT_FALSE(result);
+    result = rg_load_file_binary(RG_CSTR_CONST("resources/nonexisting.txt"), (void **) &contents, &length);
+    EXPECT_FALSE(result);
+
 }

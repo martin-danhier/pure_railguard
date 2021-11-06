@@ -2,25 +2,18 @@
 #ifdef RENDERER_VULKAN
 
 #include "railguard/core/renderer.h"
-#include <railguard/core/window.h>
-#include <railguard/utils/arrays.h>
 #include <railguard/utils/event_sender.h>
+#include <railguard/utils/storage.h>
 
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <volk.h>
 // Needs to be after volk
-#include <vk_mem_alloc.h>
 #include <railguard/utils/io.h>
-#include <railguard/utils/maps.h>
+#include <railguard/utils/memory.h>
 
-#ifdef USE_VK_VALIDATION_LAYERS
-
-#include <string.h>
-
-#endif
+#include <vk_mem_alloc.h>
 
 // --==== SETTINGS ====--
 
@@ -29,8 +22,6 @@
 /// \brief Number of frames that can be rendered at the same time. Set to 2 for double buffering, or 3 for triple buffering.
 #define NB_OVERLAPPING_FRAMES 3
 #define VULKAN_API_VERSION    VK_API_VERSION_1_1
-/** Key used for the event handlers_lookup_map */
-#define EVENT_HANDLER_NAME "renderer"
 
 // endregion
 
@@ -81,8 +72,9 @@ typedef struct rg_swapchain
     VkFormat           depth_image_format;
     rg_allocated_image depth_image;
     // Target window
-    rg_window   *target_window;
-    VkSurfaceKHR surface;
+    rg_window          *target_window;
+    rg_event_handler_id window_resize_event_handler_id;
+    VkSurfaceKHR        surface;
     // Pointer to renderer so that we can go back to it from the swapchain
     rg_renderer *renderer;
 } rg_swapchain;
@@ -111,8 +103,8 @@ typedef struct rg_renderer
      * We place them in a array to be able to efficiently iterate through them. And because their number won't change, we can safely
      * send pointers to individual swapchains around.
      */
-    rg_array     swapchains;
-    rg_hash_map *shaders;
+    rg_array           swapchains;
+    rg_handle_storage *shaders;
 
 } rg_renderer;
 
@@ -122,15 +114,16 @@ typedef struct rg_renderer
 
 // region Error handling functions
 
-const char *rg_renderer_vk_result_to_str(VkResult result)
+rg_string rg_renderer_vk_result_to_str(VkResult result)
 {
     switch (result)
     {
-        case VK_SUCCESS: return "VK_SUCCESS";
-        case VK_ERROR_INITIALIZATION_FAILED: return "VK_ERROR_INITIALIZATION_FAILED";
-        case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: return "VK_ERROR_NATIVE_WINDOW_IN_USE_KHR";
+        case VK_SUCCESS: return RG_CSTR_CONST("VK_SUCCESS");
+        case VK_ERROR_INITIALIZATION_FAILED: return RG_CSTR_CONST("VK_ERROR_INITIALIZATION_FAILED");
+        case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: return RG_CSTR_CONST("VK_ERROR_NATIVE_WINDOW_IN_USE_KHR");
         default:
-            return "N"; // We just need a character that is different from VK_ ... because I don't want to convert the number to string
+            return RG_CSTR_CONST(
+                "N"); // We just need a character that is different from VK_ ... because I don't want to convert the number to string
     }
 }
 
@@ -139,14 +132,14 @@ void vk_check(VkResult result, const char *error_message)
     if (result != VK_SUCCESS)
     {
         // Pretty print error
-        const char *result_str = rg_renderer_vk_result_to_str(result);
-        if (result_str[0] == 'N')
+        rg_string result_str = rg_renderer_vk_result_to_str(result);
+        if (result_str.data[0] == 'N')
         {
             fprintf(stderr, "[Vulkan Error] A Vulkan function call returned VkResult = %d !\n", result);
         }
         else
         {
-            fprintf(stderr, "[Vulkan Error] A Vulkan function call returned %s !\n", result_str);
+            fprintf(stderr, "[Vulkan Error] A Vulkan function call returned %s !\n", result_str.data);
         }
         // Optional custom error message precision
         if (error_message != NULL)
@@ -172,11 +165,11 @@ void rg_renderer_check(bool result, const char *error_message)
 
 /**
  * @brief Checks if the given extensions are supported
- * @param desired_extensions is an array of desired_extensions_count layer names (null terminated strings)
+ * @param desired_extensions is an array of desired_extensions_count layer names
  * @param desired_extensions_count is the number of extension names to check
  * @return true if every extension is supported, false otherwise.
  */
-bool rg_renderer_check_instance_extension_support(const char *const *desired_extensions, uint32_t desired_extensions_count)
+bool rg_renderer_check_instance_extension_support(rg_string *desired_extensions, uint32_t desired_extensions_count)
 {
     // Get the number of available desired_extensions
     uint32_t available_extensions_count = 0;
@@ -194,7 +187,8 @@ bool rg_renderer_check_instance_extension_support(const char *const *desired_ext
         // Search available until the desired is found or not
         for (uint32_t j = 0; j < available_extensions_count && !found; j++)
         {
-            if (strcmp(desired_extensions[i], ((VkExtensionProperties *) available_extensions.data)[j].extensionName) == 0)
+            if (rg_string_equals(desired_extensions[i],
+                                 RG_CSTR(((VkExtensionProperties *) available_extensions.data)[j].extensionName)))
             {
                 found = true;
             }
@@ -219,9 +213,9 @@ bool rg_renderer_check_instance_extension_support(const char *const *desired_ext
  * @param desired_extensions_count is the number of extension names to check
  * @return true if every extension is supported, false otherwise.
  */
-bool rg_renderer_check_device_extension_support(VkPhysicalDevice   physical_device,
-                                                const char *const *desired_extensions,
-                                                uint32_t           desired_extensions_count)
+bool rg_renderer_check_device_extension_support(VkPhysicalDevice physical_device,
+                                                rg_string       *desired_extensions,
+                                                uint32_t         desired_extensions_count)
 {
     // Get the number of available desired_extensions
     uint32_t available_extensions_count = 0;
@@ -240,7 +234,8 @@ bool rg_renderer_check_device_extension_support(VkPhysicalDevice   physical_devi
         // Search available until the desired is found or not
         for (uint32_t j = 0; j < available_extensions_count && !found; j++)
         {
-            if (strcmp(desired_extensions[i], ((VkExtensionProperties *) available_extensions.data)[j].extensionName) == 0)
+            if (rg_string_equals(desired_extensions[i],
+                                 RG_CSTR(((VkExtensionProperties *) available_extensions.data)[j].extensionName)))
             {
                 found = true;
             }
@@ -266,7 +261,7 @@ bool rg_renderer_check_device_extension_support(VkPhysicalDevice   physical_devi
  * @param desired_layers_count is the number of layer names to check
  * @return true if every layer is supported, false otherwise.
  */
-bool rg_renderer_check_layer_support(const char *const *desired_layers, uint32_t desired_layers_count)
+bool rg_renderer_check_layer_support(rg_string *desired_layers, uint32_t desired_layers_count)
 {
     // Get the number of available desired_layers
     uint32_t available_layers_count = 0;
@@ -275,7 +270,7 @@ bool rg_renderer_check_layer_support(const char *const *desired_layers, uint32_t
     rg_array available_layers = rg_create_array(available_layers_count, sizeof(VkLayerProperties));
     vk_check(vkEnumerateInstanceLayerProperties(&available_layers_count, available_layers.data), NULL);
 
-    // For each desired layer, rg_renderer_check if it is available
+    // For each desired layer, check if it is available
     bool valid = true;
     for (uint32_t i = 0; i < desired_layers_count && valid; i++)
     {
@@ -284,7 +279,7 @@ bool rg_renderer_check_layer_support(const char *const *desired_layers, uint32_t
         // Search available until the desired is found or not
         for (uint32_t j = 0; j < available_layers_count && !found; j++)
         {
-            if (strcmp(desired_layers[i], ((VkLayerProperties *) available_layers.data)[j].layerName) == 0)
+            if (rg_string_equals(desired_layers[i], RG_CSTR(((VkLayerProperties *) available_layers.data)[j].layerName)))
             {
                 found = true;
             }
@@ -311,15 +306,14 @@ bool rg_renderer_check_layer_support(const char *const *desired_layers, uint32_t
  * @param user_data User data passed to the debug messenger
  * @return
  */
-VKAPI_ATTR VkBool32 VKAPI_CALL *rg_renderer_debug_messenger_callback(VkDebugUtilsMessageSeverityFlagBitsEXT      message_severity,
-                                                                     VkDebugUtilsMessageTypeFlagsEXT             message_types,
-                                                                     const VkDebugUtilsMessengerCallbackDataEXT *callback_data,
-                                                                     void                                       *user_data)
+VkBool32 *rg_renderer_debug_messenger_callback(VkDebugUtilsMessageSeverityFlagBitsEXT      message_severity,
+                                               VkDebugUtilsMessageTypeFlagsEXT             message_types,
+                                               const VkDebugUtilsMessengerCallbackDataEXT *callback_data)
 {
     // Inspired by VkBootstrap's default debug messenger. (Made by Charles Giessen)
 
     // Get severity
-    char *str_severity;
+    char *str_severity = NULL;
     switch (message_severity)
     {
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT: str_severity = "VERBOSE"; break;
@@ -376,7 +370,6 @@ uint32_t rg_renderer_rate_physical_device(VkPhysicalDevice device)
     VkPhysicalDeviceFeatures   device_features;
     vkGetPhysicalDeviceProperties(device, &device_properties);
     vkGetPhysicalDeviceFeatures(device, &device_features);
-    const char *name = device_properties.deviceName;
 
     // Prefer discrete gpu when available
     if (device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
@@ -389,8 +382,8 @@ uint32_t rg_renderer_rate_physical_device(VkPhysicalDevice device)
 
     // The device needs to support the following device extensions, otherwise it is unusable
 #define REQUIRED_DEVICE_EXT_COUNT 1
-    const char *required_device_extensions[REQUIRED_DEVICE_EXT_COUNT] = {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+    rg_string required_device_extensions[REQUIRED_DEVICE_EXT_COUNT] = {
+        RG_CSTR_CONST(VK_KHR_SWAPCHAIN_EXTENSION_NAME),
     };
     bool extensions_are_supported =
         rg_renderer_check_device_extension_support(device, required_device_extensions, REQUIRED_DEVICE_EXT_COUNT);
@@ -413,7 +406,7 @@ VkSurfaceFormatKHR rg_select_surface_format(rg_renderer *renderer, rg_window *wi
 {
     // Get surface
     VkSurfaceKHR       surface        = rg_window_get_vulkan_surface(window, renderer->instance);
-    VkSurfaceFormatKHR surface_format = {};
+    VkSurfaceFormatKHR surface_format = {VK_FORMAT_UNDEFINED, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
 
     // Get the available formats
     uint32_t available_format_count = 0;
@@ -439,7 +432,7 @@ VkSurfaceFormatKHR rg_select_surface_format(rg_renderer *renderer, rg_window *wi
     bool found = false;
     for (uint32_t i = 0; i < available_format_count && !found; i++)
     {
-        VkSurfaceFormatKHR *available_format = available_formats.data + (i * sizeof(VkSurfaceFormatKHR));
+        VkSurfaceFormatKHR *available_format = ((VkSurfaceFormatKHR *) available_formats.data) + i;
 
         for (uint32_t j = 0; j < DESIRED_FORMAT_COUNT && !found; j++)
         {
@@ -571,7 +564,9 @@ rg_allocated_image rg_renderer_create_image(VmaAllocator          allocator,
                                             VmaMemoryUsage        memory_usage)
 {
     // We use VMA for now. We can always switch to a custom allocator later if we want to.
-    rg_allocated_image image = {};
+    rg_allocated_image image = {
+        VK_NULL_HANDLE,
+    };
 
     rg_renderer_check(image_extent.width >= 1 && image_extent.height >= 1 && image_extent.depth >= 1,
                       "Tried to create an image with an invalid extent. The extent must be at least 1 in each dimension.");
@@ -682,7 +677,7 @@ void rg_init_swapchain_inner(rg_renderer *renderer, rg_swapchain *swapchain, rg_
     // Get the images
     uint32_t effective_image_count = 0;
     vkGetSwapchainImagesKHR(renderer->device, swapchain->vk_swapchain, &effective_image_count, VK_NULL_HANDLE);
-    swapchain->swapchain_images = malloc(sizeof(VkImage) * effective_image_count);
+    swapchain->swapchain_images = rg_malloc(sizeof(VkImage) * effective_image_count);
     vkGetSwapchainImagesKHR(renderer->device, swapchain->vk_swapchain, &effective_image_count, swapchain->swapchain_images);
 
     // Update the image count based on how many were effectively created
@@ -713,7 +708,7 @@ void rg_init_swapchain_inner(rg_renderer *renderer, rg_swapchain *swapchain, rg_
     };
 
     // Allocate memory for it
-    swapchain->swapchain_image_views = malloc(sizeof(VkImageView) * swapchain->image_count);
+    swapchain->swapchain_image_views = rg_malloc(sizeof(VkImageView) * swapchain->image_count);
 
     // Create the image views
     for (uint32_t i = 0; i < swapchain->image_count; i++)
@@ -745,7 +740,7 @@ void rg_init_swapchain_inner(rg_renderer *renderer, rg_swapchain *swapchain, rg_
 
     // region Framebuffers creation
 
-    swapchain->swapchain_image_framebuffers = malloc(sizeof(VkFramebuffer) * swapchain->image_count);
+    swapchain->swapchain_image_framebuffers = rg_malloc(sizeof(VkFramebuffer) * swapchain->image_count);
 
     VkFramebufferCreateInfo framebuffer_create_info = {
         .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
@@ -772,7 +767,7 @@ void rg_renderer_add_window(rg_renderer *renderer, uint32_t window_index, rg_win
     rg_renderer_check(window_index < renderer->swapchains.count, "Swapchain index out of range.");
 
     // Get the swapchain in the renderer
-    rg_swapchain *swapchain = renderer->swapchains.data + (window_index * sizeof(rg_swapchain));
+    rg_swapchain *swapchain = ((rg_swapchain *) renderer->swapchains.data) + window_index;
 
     // Ensure that there is not a live swapchain here already
     rg_renderer_check(!swapchain->enabled,
@@ -840,7 +835,7 @@ void rg_renderer_add_window(rg_renderer *renderer, uint32_t window_index, rg_win
     // region Image count selection
 
     // Check the surface capabilities
-    VkSurfaceCapabilitiesKHR surface_capabilities = {};
+    VkSurfaceCapabilitiesKHR surface_capabilities = {0};
     vk_check(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(renderer->physical_device, swapchain->surface, &surface_capabilities), NULL);
 
     // For the image count, take the minimum plus one. Or, if the minimum is equal to the maximum, take that value.
@@ -864,14 +859,14 @@ void rg_renderer_add_window(rg_renderer *renderer, uint32_t window_index, rg_win
 
     // region Register to window events
 
-    rg_renderer_check(
+    swapchain->window_resize_event_handler_id =
         rg_window_resize_event_subscribe(window,
-                                         EVENT_HANDLER_NAME,
                                          (rg_event_handler) {
                                              .pfn_handler = (rg_event_handler_function) rg_renderer_handle_window_resize_event,
                                              .user_data   = swapchain,
                                          }),
-        NULL);
+    rg_renderer_check(swapchain->window_resize_event_handler_id != RG_EVENT_HANDLER_NULL_ID,
+                      "Couldn't subscribe to window resize events.");
 
     // endregion
 
@@ -910,14 +905,15 @@ void rg_destroy_swapchain_inner(rg_swapchain *swapchain)
     swapchain->vk_swapchain = VK_NULL_HANDLE;
 
     // Clean the arrays
-    free(swapchain->swapchain_image_views);
-    free(swapchain->swapchain_images);
+    rg_free(swapchain->swapchain_image_framebuffers);
+    rg_free(swapchain->swapchain_image_views);
+    rg_free(swapchain->swapchain_images);
 }
 
 void rg_destroy_swapchain(rg_swapchain *swapchain)
 {
     // Unregister window events
-    rg_window_resize_event_unsubscribe(swapchain->target_window, EVENT_HANDLER_NAME);
+    rg_window_resize_event_unsubscribe(swapchain->target_window, swapchain->window_resize_event_handler_id);
 
     // Cleanup
     rg_destroy_swapchain_inner(swapchain);
@@ -933,7 +929,7 @@ void rg_renderer_recreate_swapchain(rg_swapchain *swapchain, rg_extent_2d new_ex
 {
     // Ensure that there is a swapchain to recreate
     rg_renderer_check(swapchain->enabled,
-                      "Attempted to recreate an nonexisting swapchain. "
+                      "Attempted to recreate an non-existing swapchain. "
                       "Use rg_renderer_add_window to create a new one instead.");
 
     rg_renderer *renderer = swapchain->renderer;
@@ -950,7 +946,7 @@ void rg_renderer_recreate_swapchain(rg_swapchain *swapchain, rg_extent_2d new_ex
 
 // region Shaders functions
 
-void rg_renderer_load_shader(rg_renderer *renderer, const char *shader_name, const char *shader_path)
+rg_shader_id rg_renderer_load_shader(rg_renderer *renderer, rg_string shader_path)
 {
     // Load binary from file
     uint32_t *code      = NULL;
@@ -963,28 +959,47 @@ void rg_renderer_load_shader(rg_renderer *renderer, const char *shader_name, con
         .pNext    = NULL,
         .codeSize = code_size,
         .pCode    = code,
-        };
+    };
     VkShaderModule module = VK_NULL_HANDLE;
     vk_check(vkCreateShaderModule(renderer->device, &shader_module_create_info, NULL, &module), "Couldn't create shader module");
 
-    // Save it in map
-    rg_renderer_check(rg_hash_map_set(renderer->shaders, shader_name, (rg_hash_map_value_t) (void *) module),
-                      "Couldn't save shader module");
+    // Free the code
+    if (code != NULL) {
+        rg_free(code);
+    }
 
-    printf("Loaded shader \"%s\"\n", shader_name);
+    // Save it in map
+    rg_shader_id shader_id = rg_handle_storage_push(renderer->shaders, module);
+
+    // Get the name of the shader without the beginning of the path
+    size_t    i = rg_string_find_char_reverse(shader_path, '/');
+    rg_string shader_name;
+    if (i == -1)
+    {
+        shader_name = shader_path;
+    }
+    else
+    {
+        shader_name = rg_string_get_substring(shader_path, i + 1, rg_string_end(shader_path));
+    }
+
+    printf("Loaded shader \"%s\"\n", shader_name.data);
+
+    // Return the shader id
+    return shader_id;
 }
 
-void rg_renderer_destroy_shader(rg_renderer *renderer, const char *shader_name)
+void rg_renderer_destroy_shader(rg_renderer *renderer, rg_shader_id shader_id)
 {
     // Get shader module
-    rg_hash_map_get_result get_result = rg_hash_map_get(renderer->shaders, shader_name);
+    rg_handle_storage_get_result get_result = rg_handle_storage_get(renderer->shaders, shader_id);
     if (get_result.exists)
     {
         // Destroy shader module
-        vkDestroyShaderModule(renderer->device, (VkShaderModule) get_result.value.as_ptr, NULL);
+        vkDestroyShaderModule(renderer->device, (VkShaderModule) get_result.value, NULL);
 
         // Remove from map
-        rg_hash_map_erase(renderer->shaders, shader_name);
+        rg_handle_storage_erase(renderer->shaders, shader_id);
     }
 }
 
@@ -993,24 +1008,24 @@ void rg_renderer_clear_shaders(rg_renderer *renderer)
     if (renderer->shaders != NULL)
     {
         // Destroy all shader modules
-        rg_hash_map_it it = rg_hash_map_iterator(renderer->shaders);
-        while (rg_hash_map_next(&it))
+        rg_handle_storage_it it = rg_handle_storage_iterator(renderer->shaders);
+        while (rg_handle_storage_next(&it))
         {
-            vkDestroyShaderModule(renderer->device, (VkShaderModule) it.value.as_ptr, NULL);
+            vkDestroyShaderModule(renderer->device, (VkShaderModule) it.value, NULL);
         }
 
         // Destroy map
-        rg_destroy_hash_map(&renderer->shaders);
+        rg_destroy_handle_storage(&renderer->shaders);
     }
 }
 
-VkShaderModule rg_renderer_get_shader(rg_renderer *renderer, const char* shader_name)
+VkShaderModule rg_renderer_get_shader(rg_renderer *renderer, rg_shader_id shader_id)
 {
     // Get shader module
-    rg_hash_map_get_result get_result = rg_hash_map_get(renderer->shaders, shader_name);
+    rg_handle_storage_get_result get_result = rg_handle_storage_get(renderer->shaders, shader_id);
     if (get_result.exists)
     {
-        return (VkShaderModule) get_result.value.as_ptr;
+        return (VkShaderModule) get_result.value;
     }
     else
     {
@@ -1030,7 +1045,7 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
     // Create a renderer in the heap
     // This is done to keep the renderer opaque in the header
     // Use calloc to set all bytes to 0
-    rg_renderer *renderer = calloc(1, sizeof(rg_renderer));
+    rg_renderer *renderer = rg_calloc(1, sizeof(rg_renderer));
     if (renderer == NULL)
     {
         return NULL;
@@ -1055,20 +1070,25 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
     // Add other extensions in the extra slots
     uint32_t extra_ext_index = required_extensions.count - extra_extension_count;
 #ifdef USE_VK_VALIDATION_LAYERS
-    ((char **) required_extensions.data)[extra_ext_index++] = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+    ((rg_string *) required_extensions.data)[extra_ext_index++] = RG_CSTR_CONST(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 #endif
 
     rg_renderer_check(rg_renderer_check_instance_extension_support(required_extensions.data, required_extensions.count),
                       "Not all required Vulkan extensions are supported.");
 
+    // Convert to cstr array
+    rg_array required_extension_cstrs = rg_string_array_to_cstr_array(required_extensions.data, required_extensions.count);
+
     // Get the validations layers if needed
 #ifdef USE_VK_VALIDATION_LAYERS
 #define ENABLED_LAYERS_COUNT 1
-    const char *required_validation_layers[ENABLED_LAYERS_COUNT] = {
-        "VK_LAYER_KHRONOS_validation",
+    rg_string required_validation_layers[ENABLED_LAYERS_COUNT] = {
+        RG_CSTR_CONST("VK_LAYER_KHRONOS_validation"),
     };
     rg_renderer_check(rg_renderer_check_layer_support(required_validation_layers, ENABLED_LAYERS_COUNT),
                       "Vulkan validation layers requested, but not available.");
+    // Convert to cstrs
+    rg_array required_validation_layers_cstrs = rg_string_array_to_cstr_array(required_validation_layers, ENABLED_LAYERS_COUNT);
 #endif
 
     VkApplicationInfo applicationInfo = {
@@ -1093,13 +1113,13 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
         .pApplicationInfo = &applicationInfo,
 
         // Extensions
-        .enabledExtensionCount   = required_extensions.count,
-        .ppEnabledExtensionNames = required_extensions.data,
+        .enabledExtensionCount   = required_extension_cstrs.count,
+        .ppEnabledExtensionNames = required_extension_cstrs.data,
 
     // Validation layers
 #ifdef USE_VK_VALIDATION_LAYERS
         .enabledLayerCount   = ENABLED_LAYERS_COUNT,
-        .ppEnabledLayerNames = required_validation_layers,
+        .ppEnabledLayerNames = required_validation_layers_cstrs.data,
 #else
         .enabledLayerCount   = 0,
         .ppEnabledLayerNames = NULL,
@@ -1110,6 +1130,10 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
 
     // Cleanup instance creation
     rg_destroy_array(&required_extensions);
+    rg_destroy_array(&required_extension_cstrs);
+#ifdef USE_VK_VALIDATION_LAYERS
+    rg_destroy_array(&required_validation_layers_cstrs);
+#endif
 
     // Register instance in Volk
     volkLoadInstance(renderer->instance);
@@ -1269,8 +1293,8 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
 
     // Create geometric render pass
 
-    VkAttachmentReference   attachment_references[3] = {};
-    VkAttachmentDescription attachments[3]           = {};
+    VkAttachmentReference   attachment_references[3] = {0};
+    VkAttachmentDescription attachments[3]           = {{0}, {0}, {0}};
 
     // Position color buffer
     attachments[0] = (VkAttachmentDescription) {
@@ -1353,12 +1377,12 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
     // --=== Init various storages ===--
 
     // Init shaders map
-    renderer->shaders = rg_create_hash_map();
+    renderer->shaders = rg_create_handle_storage();
 
     return renderer;
 }
 
-void rg_destroy_renderer(rg_renderer **renderer, rg_window *window)
+void rg_destroy_renderer(rg_renderer **renderer)
 {
     // Clear shaders
     rg_renderer_clear_shaders(*renderer);
@@ -1366,12 +1390,15 @@ void rg_destroy_renderer(rg_renderer **renderer, rg_window *window)
     // Destroy swapchains
     for (uint32_t i = 0; i < (*renderer)->swapchains.count; i++)
     {
-        rg_swapchain *swapchain = (*renderer)->swapchains.data + (i * sizeof(rg_swapchain));
+        rg_swapchain *swapchain = ((rg_swapchain *) (*renderer)->swapchains.data) + i;
         if (swapchain->enabled)
         {
             rg_destroy_swapchain(swapchain);
         }
     }
+
+    // Destroy swapchain array
+    rg_destroy_array(&(*renderer)->swapchains);
 
     // Destroy render passes
     vkDestroyRenderPass((*renderer)->device, (*renderer)->passes.geometry_pass, NULL);
@@ -1391,12 +1418,11 @@ void rg_destroy_renderer(rg_renderer **renderer, rg_window *window)
     vkDestroyInstance((*renderer)->instance, NULL);
 
     // Free the renderer
-    free(*renderer);
+    rg_free(*renderer);
 
     // Since we took a double pointer in parameter, we can also set it to null
     // Thus, the user doesn't have to do it themselves
     *renderer = NULL;
 }
-
 
 #endif
