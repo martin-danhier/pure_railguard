@@ -21,8 +21,10 @@
 // region Settings
 
 /// \brief Number of frames that can be rendered at the same time. Set to 2 for double buffering, or 3 for triple buffering.
-#define NB_OVERLAPPING_FRAMES 3
-#define VULKAN_API_VERSION    VK_API_VERSION_1_1
+#define NB_OVERLAPPING_FRAMES   3
+#define VULKAN_API_VERSION      VK_API_VERSION_1_1
+#define WAIT_FOR_FENCES_TIMEOUT 1000000000
+#define SEMAPHORE_TIMEOUT       1000000000
 
 // endregion
 
@@ -85,6 +87,15 @@ typedef struct rg_passes
     VkRenderPass geometry_pass;
     VkRenderPass lighting_pass;
 } rg_passes;
+
+typedef struct rg_frame_data
+{
+    VkCommandPool   command_pool;
+    VkCommandBuffer command_buffer;
+    VkSemaphore     present_semaphore;
+    VkSemaphore     render_semaphore;
+    VkFence         render_fence;
+} rg_frame_data;
 
 // = Material system =
 
@@ -151,6 +162,12 @@ typedef struct rg_renderer
      * send pointers to individual swapchains around.
      */
     rg_array swapchains;
+
+    // Frame management
+
+    // Counter of frame since the start of the renderer
+    uint64_t      current_frame_number;
+    rg_frame_data frames[NB_OVERLAPPING_FRAMES];
 
     // Define the storages for the material system
     rg_storage *shader_modules;
@@ -683,6 +700,18 @@ void rg_renderer_destroy_image(VmaAllocator allocator, VkDevice device, rg_alloc
     vmaDestroyImage(allocator, image->image, image->allocation);
     image->image      = VK_NULL_HANDLE;
     image->allocation = VK_NULL_HANDLE;
+}
+
+// endregion
+
+// region Synchronisation functions
+
+static inline void rg_renderer_wait_for_fence(rg_renderer *renderer, VkFence fence)
+{
+    // Wait for it
+    vk_check(vkWaitForFences(renderer->device, 1, &fence, VK_TRUE, WAIT_FOR_FENCES_TIMEOUT), "Couldn't wait for fence");
+    // Reset it
+    vk_check(vkResetFences(renderer->device, 1, &fence), "Couldn't reset fence");
 }
 
 // endregion
@@ -1384,7 +1413,8 @@ rg_model_id rg_renderer_create_model(rg_renderer *renderer, rg_material_id mater
     return model_id;
 }
 
-void rg_renderer_destroy_model(rg_renderer *renderer, rg_model_id model_id) {
+void rg_renderer_destroy_model(rg_renderer *renderer, rg_model_id model_id)
+{
     // Get model
     rg_model *model = rg_storage_get(renderer->models, model_id);
     if (model != NULL)
@@ -1470,7 +1500,8 @@ void rg_renderer_model_unregister_instance(rg_renderer *renderer, rg_model_id mo
 
 // region Render nodes functions
 
-rg_render_node_id rg_renderer_create_render_node(rg_renderer *renderer, rg_model_id model_id) {
+rg_render_node_id rg_renderer_create_render_node(rg_renderer *renderer, rg_model_id model_id)
+{
     // Basic checks
     rg_renderer_check(renderer != NULL, NULL);
     rg_renderer_check(model_id != RG_STORAGE_NULL_ID, NULL);
@@ -1489,7 +1520,8 @@ rg_render_node_id rg_renderer_create_render_node(rg_renderer *renderer, rg_model
     return render_node_id;
 }
 
-void rg_renderer_destroy_render_node(rg_renderer *renderer, rg_render_node_id render_node_id) {
+void rg_renderer_destroy_render_node(rg_renderer *renderer, rg_render_node_id render_node_id)
+{
     // Get render node
     rg_render_node *node = rg_storage_get(renderer->render_nodes, render_node_id);
     if (node != NULL)
@@ -1509,6 +1541,86 @@ void rg_renderer_clear_render_nodes(rg_renderer *renderer)
         // Clean storage itself
         rg_destroy_storage(&renderer->render_nodes);
     }
+}
+
+// endregion
+
+// region Frame functions
+
+static inline uint64_t rg_get_current_frame_index(rg_renderer *renderer)
+{
+    return renderer->current_frame_number % NB_OVERLAPPING_FRAMES;
+}
+
+static inline rg_frame_data *rg_get_current_frame(rg_renderer *renderer)
+{
+    return &renderer->frames[rg_get_current_frame_index(renderer)];
+}
+
+static inline void rg_wait_for_current_fence(rg_renderer *renderer)
+{
+    rg_renderer_wait_for_fence(renderer, rg_get_current_frame(renderer)->render_fence);
+}
+
+void rg_renderer_wait_for_all_fences(rg_renderer *renderer)
+{
+    // Get fences in array
+    VkFence fences[NB_OVERLAPPING_FRAMES];
+    for (uint64_t i = 0; i < NB_OVERLAPPING_FRAMES; i++)
+    {
+        fences[i] = renderer->frames[i].render_fence;
+    }
+
+    vk_check(vkWaitForFences(renderer->device, NB_OVERLAPPING_FRAMES, fences, VK_TRUE, WAIT_FOR_FENCES_TIMEOUT),
+             "Failed to wait for fences");
+}
+
+VkCommandBuffer rg_renderer_begin_recording(rg_renderer *renderer)
+{
+    // Get current frame
+    rg_frame_data *frame = rg_get_current_frame(renderer);
+
+    // Reset command buffer
+    vk_check(vkResetCommandBuffer(frame->command_buffer, 0), NULL);
+
+    // Begin command buffer
+    VkCommandBufferBeginInfo begin_info = {
+        .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext            = VK_NULL_HANDLE,
+        .pInheritanceInfo = VK_NULL_HANDLE,
+        .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+    };
+    vk_check(vkBeginCommandBuffer(frame->command_buffer, &begin_info), NULL);
+
+    return frame->command_buffer;
+}
+
+void rg_renderer_end_recording_and_submit(rg_renderer *renderer)
+{
+    // Get current frame
+    rg_frame_data *frame = rg_get_current_frame(renderer);
+
+    // End command buffer
+    vk_check(vkEndCommandBuffer(frame->command_buffer), NULL);
+
+    // Submit command buffer
+    VkPipelineStageFlags wait_stage  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    VkSubmitInfo         submit_info = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = VK_NULL_HANDLE,
+        // Wait until the image to render is ready
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores    = &frame->present_semaphore,
+        // Pipeline stage
+        .pWaitDstStageMask = &wait_stage,
+        // Link the command buffer
+        .commandBufferCount = 1,
+        .pCommandBuffers    = &frame->command_buffer,
+        // Signal the render semaphore
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores    = &frame->render_semaphore,
+    };
+    vk_check(vkQueueSubmit(renderer->graphics_queue.queue, 1, &submit_info, frame->render_fence), NULL);
 }
 
 // endregion
@@ -1862,11 +1974,82 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
     renderer->models             = rg_create_storage(sizeof(rg_model));
     renderer->render_nodes       = rg_create_storage(sizeof(rg_render_node));
 
+    // --=== Init frames ===--
+
+    // region Init frames
+
+    renderer->current_frame_number = 1;
+
+    // Define create infos
+    VkCommandPoolCreateInfo command_pool_create_info = {
+        .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+        .pNext            = VK_NULL_HANDLE,
+        .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+        .queueFamilyIndex = renderer->graphics_queue.family_index,
+    };
+
+    VkFenceCreateInfo fence_create_info = {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .pNext = VK_NULL_HANDLE,
+        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+    };
+
+    VkSemaphoreCreateInfo semaphore_create_info = {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        .pNext = VK_NULL_HANDLE,
+        .flags = 0,
+    };
+
+    // For each frame
+    for (uint32_t i = 0; i < NB_OVERLAPPING_FRAMES; i++)
+    {
+        // Create command pool
+        vk_check(vkCreateCommandPool(renderer->device, &command_pool_create_info, NULL, &renderer->frames[i].command_pool),
+                 "Couldn't create command pool");
+
+        // Create command buffers
+        VkCommandBufferAllocateInfo command_buffer_allocate_info = {
+            .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .pNext              = VK_NULL_HANDLE,
+            .commandPool        = renderer->frames[i].command_pool,
+            .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            .commandBufferCount = 1,
+        };
+        vk_check(vkAllocateCommandBuffers(renderer->device, &command_buffer_allocate_info, &renderer->frames[i].command_buffer),
+                 "Couldn't allocate command buffers");
+
+        // Create fence
+        vk_check(vkCreateFence(renderer->device, &fence_create_info, NULL, &renderer->frames[i].render_fence),
+                 "Couldn't create fence");
+
+        // Create semaphores
+        vk_check(vkCreateSemaphore(renderer->device, &semaphore_create_info, NULL, &renderer->frames[i].present_semaphore),
+                 "Couldn't create semaphore");
+        vk_check(vkCreateSemaphore(renderer->device, &semaphore_create_info, NULL, &renderer->frames[i].render_semaphore),
+                 "Couldn't create semaphore");
+    }
+
+    // endregion
+
     return renderer;
 }
 
 void rg_destroy_renderer(rg_renderer **renderer)
 {
+    // Clear frames
+    for (uint32_t i = 0; i < NB_OVERLAPPING_FRAMES; i++)
+    {
+        // Destroy semaphores
+        vkDestroySemaphore(renderer[0]->device, renderer[0]->frames[i].present_semaphore, NULL);
+        vkDestroySemaphore(renderer[0]->device, renderer[0]->frames[i].render_semaphore, NULL);
+        // Destroy fence
+        vkDestroyFence(renderer[0]->device, renderer[0]->frames[i].render_fence, NULL);
+        // Destroy command buffers
+        vkFreeCommandBuffers(renderer[0]->device, renderer[0]->frames[i].command_pool, 1, &renderer[0]->frames[i].command_buffer);
+        // Destroy command pool
+        vkDestroyCommandPool(renderer[0]->device, renderer[0]->frames[i].command_pool, NULL);
+    }
+
     // Clear render nodes
     rg_renderer_clear_render_nodes(*renderer);
 
