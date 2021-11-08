@@ -155,6 +155,10 @@ typedef struct rg_renderer
     // Define the storages for the material system
     rg_storage *shader_modules;
     rg_storage *shader_effects;
+    rg_storage *material_templates;
+    rg_storage *materials;
+    rg_storage *models;
+    rg_storage *render_nodes;
 
 } rg_renderer;
 
@@ -914,7 +918,7 @@ void rg_renderer_add_window(rg_renderer *renderer, uint32_t window_index, rg_win
                                          (rg_event_handler) {
                                              .pfn_handler = (rg_event_handler_function) rg_renderer_handle_window_resize_event,
                                              .user_data   = swapchain,
-                                         }),
+                                         });
     rg_renderer_check(swapchain->window_resize_event_handler_id != RG_EVENT_HANDLER_NULL_ID,
                       "Couldn't subscribe to window resize events.");
 
@@ -1143,6 +1147,367 @@ void rg_renderer_clear_shader_effects(rg_renderer *renderer)
 
         // Clean storage itself
         rg_destroy_storage(&renderer->shader_effects);
+    }
+}
+
+void rg_renderer_destroy_shader_effect(rg_renderer *renderer, rg_shader_effect_id effect_id)
+{
+    // Get effect
+    rg_shader_effect *effect = rg_storage_get(renderer->shader_effects, effect_id);
+    if (effect != NULL)
+    {
+        // Destroy effect
+        vkDestroyPipelineLayout(renderer->device, effect->pipeline_layout, NULL);
+        rg_destroy_array(&effect->shader_stages);
+
+        // Remove from map
+        rg_storage_erase(renderer->shader_effects, effect_id);
+    }
+}
+
+// endregion
+
+// region Material templates functions
+
+rg_material_template_id
+    rg_renderer_create_material_template(rg_renderer *renderer, rg_shader_effect_id *available_effects, uint32_t effect_count)
+{
+    // Basic checks
+    rg_renderer_check(effect_count > 0, "Attempted to create a material template with 0 effects");
+    rg_renderer_check(renderer != NULL, NULL);
+    rg_renderer_check(available_effects != NULL, NULL);
+
+    // Create material template
+    rg_material_template material_template = {
+        .shader_effects = rg_create_array(effect_count, sizeof(rg_shader_effect_id)),
+    };
+    rg_renderer_check(material_template.shader_effects.data != NULL, "Couldn't create array of shader effects");
+
+    // Copy effects
+    rg_renderer_check(memcpy(material_template.shader_effects.data, available_effects, effect_count * sizeof(rg_shader_effect_id))
+                          != NULL,
+                      "Couldn't copy shader effects");
+
+    // Store material template
+    rg_material_template_id template_id = rg_storage_push(renderer->material_templates, &material_template);
+    rg_renderer_check(template_id != RG_STORAGE_NULL_ID, "Couldn't store material template");
+
+    return template_id;
+}
+
+/**
+ * Destroys the given material template.
+ * @param renderer the renderer to use
+ * @param material_template_id the id of the material template to destroy
+ */
+void rg_renderer_destroy_material_template(rg_renderer *renderer, rg_material_template_id material_template_id)
+{
+    // Get material template
+    rg_material_template *template = rg_storage_get(renderer->material_templates, material_template_id);
+    if (template != NULL)
+    {
+        // Destroy array
+        rg_destroy_array(&template->shader_effects);
+
+        // Remove from map
+        rg_storage_erase(renderer->material_templates, material_template_id);
+    }
+}
+
+void rg_renderer_clear_material_templates(rg_renderer *renderer)
+{
+    if (renderer->material_templates != NULL)
+    {
+        // Clean content of storage
+        rg_storage_it it = rg_storage_iterator(renderer->material_templates);
+        while (rg_storage_next(&it))
+        {
+            rg_material_template *template = it.value;
+
+            rg_destroy_array(&template->shader_effects);
+        }
+
+        // Clean storage itself
+        rg_destroy_storage(&renderer->material_templates);
+    }
+}
+
+// endregion
+
+// region Materials functions
+
+rg_material_id rg_renderer_create_material(rg_renderer *renderer, rg_material_template_id material_template_id)
+{
+    // Basic checks
+    rg_renderer_check(renderer != NULL, NULL);
+    rg_renderer_check(material_template_id != RG_STORAGE_NULL_ID, NULL);
+
+    // Create material
+    rg_material material = {
+        .material_template_id = material_template_id,
+        .models_using_material =
+            {
+                .data     = NULL,
+                .count    = 0,
+                .capacity = 0,
+            },
+    };
+    // Init vector
+    rg_renderer_check(rg_create_vector(10, sizeof(rg_model_id), &material.models_using_material), NULL);
+
+    // Store material
+    rg_material_id material_id = rg_storage_push(renderer->materials, &material);
+    rg_renderer_check(material_id != RG_STORAGE_NULL_ID, "Couldn't store material");
+
+    return material_id;
+}
+
+void rg_renderer_destroy_material(rg_renderer *renderer, rg_material_id material_id)
+{
+    // Get material
+    rg_material *material = rg_storage_get(renderer->materials, material_id);
+    if (material != NULL)
+    {
+        // Destroy vector
+        rg_destroy_vector(&material->models_using_material);
+
+        // Remove from map
+        rg_storage_erase(renderer->materials, material_id);
+    }
+}
+
+void rg_renderer_clear_materials(rg_renderer *renderer)
+{
+    if (renderer->materials != NULL)
+    {
+        // Clean content of storage
+        rg_storage_it it = rg_storage_iterator(renderer->materials);
+        while (rg_storage_next(&it))
+        {
+            rg_material *material = it.value;
+
+            rg_destroy_vector(&material->models_using_material);
+        }
+
+        // Clean storage itself
+        rg_destroy_storage(&renderer->materials);
+    }
+}
+
+bool rg_renderer_material_register_model(rg_renderer *renderer, rg_material_id material_id, rg_model_id model_id)
+{
+    // Get the material
+    rg_material *material = rg_storage_get(renderer->materials, material_id);
+    if (material != NULL)
+    {
+        rg_vector_push_back(&material->models_using_material, &model_id);
+
+        return true;
+    }
+
+    return false;
+}
+
+bool rg_renderer_material_unregister_model(rg_renderer *renderer, rg_material_id material_id, rg_model_id model_id)
+{
+    // Get the material
+    rg_material *material = rg_storage_get(renderer->materials, material_id);
+    if (material != NULL)
+    {
+        bool found = false;
+
+        // Find the model
+        rg_vector_it it = rg_vector_iterator(&material->models_using_material);
+        while (rg_vector_next(&it))
+        {
+            rg_model_id *id = it.value;
+
+            if (*id == model_id)
+            {
+                found = true;
+                break;
+            }
+        }
+
+        if (found)
+        {
+            size_t index      = it.index;
+            size_t last_index = rg_vector_last_index(&material->models_using_material);
+
+            if (index < last_index)
+            {
+                // Copy last element to deleted slot
+                rg_vector_copy(&material->models_using_material, last_index, index);
+            }
+
+            // Remove last element
+            rg_vector_pop_back(&material->models_using_material);
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
+// endregion
+
+// region Model functions
+
+rg_model_id rg_renderer_create_model(rg_renderer *renderer, rg_material_id material_id)
+{
+    // Basic checks
+    rg_renderer_check(renderer != NULL, NULL);
+    rg_renderer_check(material_id != RG_STORAGE_NULL_ID, NULL);
+
+    // Create model
+    rg_model model = {
+        .material_id = material_id,
+        .instances =
+            {
+                .data     = NULL,
+                .count    = 0,
+                .capacity = 0,
+            },
+    };
+
+    // Init vector
+    rg_renderer_check(rg_create_vector(10, sizeof(rg_render_node_id), &model.instances), NULL);
+
+    // Store model
+    rg_model_id model_id = rg_storage_push(renderer->models, &model);
+    rg_renderer_check(model_id != RG_STORAGE_NULL_ID, "Couldn't store model");
+
+    // Register it in the material
+    rg_renderer_material_register_model(renderer, material_id, model_id);
+
+    return model_id;
+}
+
+void rg_renderer_destroy_model(rg_renderer *renderer, rg_model_id model_id) {
+    // Get model
+    rg_model *model = rg_storage_get(renderer->models, model_id);
+    if (model != NULL)
+    {
+        // Destroy vector
+        rg_destroy_vector(&model->instances);
+
+        // Remove from map
+        rg_storage_erase(renderer->models, model_id);
+
+        // Unregister it
+        rg_renderer_material_unregister_model(renderer, model->material_id, model_id);
+    }
+}
+
+void rg_renderer_clear_models(rg_renderer *renderer)
+{
+    if (renderer->models != NULL)
+    {
+        // Clean content of storage
+        rg_storage_it it = rg_storage_iterator(renderer->models);
+        while (rg_storage_next(&it))
+        {
+            rg_model *model = it.value;
+
+            rg_destroy_vector(&model->instances);
+        }
+
+        // Clean storage itself
+        rg_destroy_storage(&renderer->models);
+    }
+}
+
+void rg_renderer_model_register_instance(rg_renderer *renderer, rg_model_id model_id, rg_render_node_id render_node_id)
+{
+    // Get model
+    rg_model *model = rg_storage_get(renderer->models, model_id);
+    if (model != NULL)
+    {
+        rg_vector_push_back(&model->instances, &render_node_id);
+    }
+}
+
+void rg_renderer_model_unregister_instance(rg_renderer *renderer, rg_model_id model_id, rg_render_node_id render_node_id)
+{
+    // Get model
+    rg_model *model = rg_storage_get(renderer->models, model_id);
+    if (model != NULL)
+    {
+        bool found = false;
+
+        // Find the model
+        rg_vector_it it = rg_vector_iterator(&model->instances);
+        while (rg_vector_next(&it))
+        {
+            rg_render_node_id *id = it.value;
+
+            if (*id == render_node_id)
+            {
+                found = true;
+                break;
+            }
+        }
+
+        if (found)
+        {
+            size_t index      = it.index;
+            size_t last_index = rg_vector_last_index(&model->instances);
+
+            if (index < last_index)
+            {
+                // Copy last element to deleted slot
+                rg_vector_copy(&model->instances, last_index, index);
+            }
+
+            // Remove last element
+            rg_vector_pop_back(&model->instances);
+        }
+    }
+}
+
+// endregion
+
+// region Render nodes functions
+
+rg_render_node_id rg_renderer_create_render_node(rg_renderer *renderer, rg_model_id model_id) {
+    // Basic checks
+    rg_renderer_check(renderer != NULL, NULL);
+    rg_renderer_check(model_id != RG_STORAGE_NULL_ID, NULL);
+
+    // Create render node
+    rg_render_node node = {
+        .model_id = model_id,
+    };
+
+    // Store render node
+    rg_render_node_id render_node_id = rg_storage_push(renderer->render_nodes, &node);
+
+    // Register it in the model
+    rg_renderer_model_register_instance(renderer, model_id, render_node_id);
+
+    return render_node_id;
+}
+
+void rg_renderer_destroy_render_node(rg_renderer *renderer, rg_render_node_id render_node_id) {
+    // Get render node
+    rg_render_node *node = rg_storage_get(renderer->render_nodes, render_node_id);
+    if (node != NULL)
+    {
+        // Unregister it
+        rg_renderer_model_unregister_instance(renderer, node->model_id, render_node_id);
+
+        // Remove from storage
+        rg_storage_erase(renderer->render_nodes, render_node_id);
+    }
+}
+
+void rg_renderer_clear_render_nodes(rg_renderer *renderer)
+{
+    if (renderer->render_nodes != NULL)
+    {
+        // Clean storage itself
+        rg_destroy_storage(&renderer->render_nodes);
     }
 }
 
@@ -1490,14 +1855,30 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
     // --=== Init various storages ===--
 
     // Init shader_modules map
-    renderer->shader_modules = rg_create_storage(sizeof(rg_shader_module));
-    renderer->shader_effects = rg_create_storage(sizeof(rg_shader_effect));
+    renderer->shader_modules     = rg_create_storage(sizeof(rg_shader_module));
+    renderer->shader_effects     = rg_create_storage(sizeof(rg_shader_effect));
+    renderer->material_templates = rg_create_storage(sizeof(rg_material_template));
+    renderer->materials          = rg_create_storage(sizeof(rg_material));
+    renderer->models             = rg_create_storage(sizeof(rg_model));
+    renderer->render_nodes       = rg_create_storage(sizeof(rg_render_node));
 
     return renderer;
 }
 
 void rg_destroy_renderer(rg_renderer **renderer)
 {
+    // Clear render nodes
+    rg_renderer_clear_render_nodes(*renderer);
+
+    // Clear models
+    rg_renderer_clear_models(*renderer);
+
+    // Clear materials
+    rg_renderer_clear_materials(*renderer);
+
+    // Clear material templates
+    rg_renderer_clear_material_templates(*renderer);
+
     // Clear shader effects
     rg_renderer_clear_shader_effects(*renderer);
 

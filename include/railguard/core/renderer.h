@@ -170,6 +170,21 @@ rg_material_id rg_renderer_create_material(rg_renderer *renderer, rg_material_te
  */
 void rg_renderer_destroy_material(rg_renderer *renderer, rg_material_id material_id);
 
+/** Registers a model for the given material.
+ * @param renderer the renderer to use
+ * @param material_id the id of the material to use
+ * @param model_id the id of the model to register
+ */
+bool rg_renderer_material_register_model(rg_renderer *renderer, rg_material_id material_id, rg_model_id model_id);
+
+/**
+ * Unregisters a model from the given material.
+ * @param renderer the renderer to use
+ * @param material_id the id of the material to use
+ * @param model_id the id of the model to unregister
+ */
+bool rg_renderer_material_unregister_model(rg_renderer *renderer, rg_material_id material_id, rg_model_id model_id);
+
 /** Create a model in the renderer.
  * @param renderer the renderer to use
  * @param material_id the id of the material to use

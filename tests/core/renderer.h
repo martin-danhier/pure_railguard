@@ -47,6 +47,22 @@ TEST(Renderer_MaterialSystem)
     rg_shader_effect_id shader_effect_id = rg_renderer_create_shader_effect(renderer, stages, 2, RG_RENDER_STAGE_KIND_GEOMETRY);
     EXPECT_TRUE(shader_effect_id != RG_STORAGE_NULL_ID);
 
+    // Create a material template
+    rg_material_template_id material_template_id = rg_renderer_create_material_template(renderer, &shader_effect_id, 1);
+    EXPECT_TRUE(material_template_id != RG_STORAGE_NULL_ID);
+
+    // Create a material
+    rg_material_id material_id = rg_renderer_create_material(renderer, material_template_id);
+    EXPECT_TRUE(material_id != RG_STORAGE_NULL_ID);
+
+    // Create a model
+    rg_model_id model_id = rg_renderer_create_model(renderer, material_id);
+    EXPECT_TRUE(model_id != RG_STORAGE_NULL_ID);
+
+    // Create a render node
+    rg_render_node_id render_node_id = rg_renderer_create_render_node(renderer, model_id);
+    EXPECT_TRUE(render_node_id != RG_STORAGE_NULL_ID);
+
     // Clean up
     rg_destroy_renderer(&renderer);
     EXPECT_NULL(renderer);

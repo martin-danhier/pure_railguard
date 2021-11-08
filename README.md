@@ -26,3 +26,9 @@ With [Scoop](https://scoop.sh):
 ### CLion
 
 Simply open the directory of the project and load the CMakeLists.txt file.
+
+### Visual Studio Code
+
+Install the recommended extensions. You can use the debug configurations to debug the program.
+
+Note: linux tasks are yet to be implemented.
