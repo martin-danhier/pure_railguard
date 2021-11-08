@@ -29,13 +29,13 @@ rg_engine *rg_create_engine(void)
     engine->window             = rg_create_window(window_extent, "My wonderful game");
 
     // Create renderer
-    engine->renderer = rg_create_renderer(engine->window, "My wonderful game", (rg_version) {0, 1, 0}, 1);
+    engine->renderer = rg_create_renderer(engine->window, "My wonderful game", (rg_version) {0, 1, 0}, 2);
 
     // Create swapchain for window
     rg_renderer_add_window(engine->renderer, 0, engine->window);
 
     // Load shaders
-    rg_renderer_load_shader(engine->renderer, RG_CSTR_CONST("resources/shaders/gbuffer.vert.spv"));
+    rg_renderer_load_shader(engine->renderer, RG_CSTR_CONST("resources/shaders/gbuffer.vert.spv"), RG_SHADER_STAGE_VERTEX);
 
     return engine;
 }

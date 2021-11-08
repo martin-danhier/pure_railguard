@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <volk.h>
 // Needs to be after volk
 #include <railguard/utils/io.h>
@@ -85,6 +86,52 @@ typedef struct rg_passes
     VkRenderPass lighting_pass;
 } rg_passes;
 
+// = Material system =
+
+typedef struct rg_shader_module
+{
+    VkShaderModule  vk_module;
+    rg_shader_stage stage;
+} rg_shader_module;
+
+typedef struct rg_shader_effect
+{
+    /** Render stages in which this effect can be used */
+    rg_render_stage_kind render_stage_kind;
+    /** Array of shader module ID. Shader stages of the pipeline, in order. */
+    rg_array         shader_stages;
+    VkPipelineLayout pipeline_layout;
+} rg_shader_effect;
+
+typedef struct rg_material_template
+{
+    /**
+     * Array of shader effect IDs. Available effects for this template.
+     * Given a render stage kind, the first corresponding effect will be the one used.
+     * */
+    rg_array shader_effects;
+} rg_material_template;
+
+typedef struct rg_material
+{
+    /** Template this material is based on. Defines the available shader effects for this material. */
+    rg_material_template_id material_template_id;
+    rg_vector               models_using_material;
+} rg_material;
+
+typedef struct rg_model
+{
+    /** Material used by this model. */
+    rg_material_id material_id;
+    rg_vector      instances;
+
+} rg_model;
+
+typedef struct rg_render_node
+{
+    rg_model_id model_id;
+} rg_render_node;
+
 // = Global renderer =
 
 typedef struct rg_renderer
@@ -103,8 +150,11 @@ typedef struct rg_renderer
      * We place them in a array to be able to efficiently iterate through them. And because their number won't change, we can safely
      * send pointers to individual swapchains around.
      */
-    rg_array           swapchains;
-    rg_handle_storage *shaders;
+    rg_array swapchains;
+
+    // Define the storages for the material system
+    rg_storage *shader_modules;
+    rg_storage *shader_effects;
 
 } rg_renderer;
 
@@ -942,34 +992,39 @@ void rg_renderer_recreate_swapchain(rg_swapchain *swapchain, rg_extent_2d new_ex
 }
 // endregion
 
-// endregion
-
 // region Shaders functions
 
-rg_shader_id rg_renderer_load_shader(rg_renderer *renderer, rg_string shader_path)
+rg_shader_module_id rg_renderer_load_shader(rg_renderer *renderer, rg_string shader_path, rg_shader_stage stage)
 {
     // Load binary from file
     uint32_t *code      = NULL;
     size_t    code_size = 0;
     rg_renderer_check(rg_load_file_binary(shader_path, (void **) &code, &code_size), "Couldn't load shader binary");
 
-    // Create shader module
+    // Create shader vk_module
     VkShaderModuleCreateInfo shader_module_create_info = {
         .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
         .pNext    = NULL,
         .codeSize = code_size,
         .pCode    = code,
     };
-    VkShaderModule module = VK_NULL_HANDLE;
-    vk_check(vkCreateShaderModule(renderer->device, &shader_module_create_info, NULL, &module), "Couldn't create shader module");
+    VkShaderModule vk_module = VK_NULL_HANDLE;
+    vk_check(vkCreateShaderModule(renderer->device, &shader_module_create_info, NULL, &vk_module), "Couldn't create shader vk_module");
 
     // Free the code
-    if (code != NULL) {
+    if (code != NULL)
+    {
         rg_free(code);
     }
 
-    // Save it in map
-    rg_shader_id shader_id = rg_handle_storage_push(renderer->shaders, module);
+    // Create the shader vk_module
+    rg_shader_module module = {
+        .vk_module = vk_module,
+        .stage     = stage,
+    };
+
+    // Add the shader to the storage
+    rg_shader_module_id shader_id = rg_storage_push(renderer->shader_modules, &module);
 
     // Get the name of the shader without the beginning of the path
     size_t    i = rg_string_find_char_reverse(shader_path, '/');
@@ -989,47 +1044,105 @@ rg_shader_id rg_renderer_load_shader(rg_renderer *renderer, rg_string shader_pat
     return shader_id;
 }
 
-void rg_renderer_destroy_shader(rg_renderer *renderer, rg_shader_id shader_id)
+void rg_renderer_destroy_shader(rg_renderer *renderer, rg_shader_module_id shader_id)
 {
     // Get shader module
-    rg_handle_storage_get_result get_result = rg_handle_storage_get(renderer->shaders, shader_id);
-    if (get_result.exists)
+    rg_shader_module *module = rg_storage_get(renderer->shader_modules, shader_id);
+    if (module != NULL)
     {
         // Destroy shader module
-        vkDestroyShaderModule(renderer->device, (VkShaderModule) get_result.value, NULL);
+        vkDestroyShaderModule(renderer->device, module->vk_module, NULL);
 
         // Remove from map
-        rg_handle_storage_erase(renderer->shaders, shader_id);
+        rg_storage_erase(renderer->shader_modules, shader_id);
     }
 }
 
 void rg_renderer_clear_shaders(rg_renderer *renderer)
 {
-    if (renderer->shaders != NULL)
+    if (renderer->shader_modules != NULL)
     {
         // Destroy all shader modules
-        rg_handle_storage_it it = rg_handle_storage_iterator(renderer->shaders);
-        while (rg_handle_storage_next(&it))
+        rg_storage_it it = rg_storage_iterator(renderer->shader_modules);
+        while (rg_storage_next(&it))
         {
-            vkDestroyShaderModule(renderer->device, (VkShaderModule) it.value, NULL);
+            rg_shader_module *module = it.value;
+            vkDestroyShaderModule(renderer->device, module->vk_module, NULL);
         }
 
         // Destroy map
-        rg_destroy_handle_storage(&renderer->shaders);
+        rg_destroy_storage(&renderer->shader_modules);
     }
 }
 
-VkShaderModule rg_renderer_get_shader(rg_renderer *renderer, rg_shader_id shader_id)
+rg_shader_module *rg_renderer_get_shader(rg_renderer *renderer, rg_shader_module_id shader_id)
 {
     // Get shader module
-    rg_handle_storage_get_result get_result = rg_handle_storage_get(renderer->shaders, shader_id);
-    if (get_result.exists)
+    return (rg_shader_module *) rg_storage_get(renderer->shader_modules, shader_id);
+}
+
+// endregion
+
+// region Shader effects functions
+
+rg_shader_effect_id rg_renderer_create_shader_effect(rg_renderer         *renderer,
+                                                     rg_shader_module_id *stages,
+                                                     uint32_t             stage_count,
+                                                     rg_render_stage_kind render_stage_kind)
+{
+    rg_renderer_check(stage_count > 0, "Attempted to create a shader effect with 0 stages");
+    rg_renderer_check(renderer != NULL, NULL);
+    rg_renderer_check(stages != NULL, NULL);
+
+    // Create shader effect
+    rg_shader_effect shader_effect;
+    shader_effect.render_stage_kind = render_stage_kind;
+
+    // Create array of stages
+    shader_effect.shader_stages = rg_create_array(stage_count, sizeof(rg_shader_module_id));
+    rg_renderer_check(memcpy(shader_effect.shader_stages.data, stages, stage_count * sizeof(rg_shader_module_id)) != NULL,
+                      "Couldn't copy shader stages");
+
+    // Create pipeline layout
+    VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .pNext                  = NULL,
+        .flags                  = 0,
+        .setLayoutCount         = 0,
+        .pSetLayouts            = NULL,
+        .pushConstantRangeCount = 0,
+        .pPushConstantRanges    = NULL,
+    };
+    shader_effect.pipeline_layout = VK_NULL_HANDLE;
+    vk_check(vkCreatePipelineLayout(renderer->device, &pipeline_layout_create_info, NULL, &shader_effect.pipeline_layout),
+             "Couldn't create pipeline layout");
+
+    // Store effect
+    rg_shader_effect_id effect_id = rg_storage_push(renderer->shader_effects, &shader_effect);
+    if (effect_id == RG_STORAGE_NULL_ID)
     {
-        return (VkShaderModule) get_result.value;
+        rg_renderer_check(false, "Couldn't store shader effect");
     }
-    else
+
+    return effect_id;
+}
+
+void rg_renderer_clear_shader_effects(rg_renderer *renderer)
+{
+    if (renderer->shader_effects != NULL)
     {
-        return VK_NULL_HANDLE;
+        // Clean content of storage
+        rg_storage_it it = rg_storage_iterator(renderer->shader_effects);
+        while (rg_storage_next(&it))
+        {
+            rg_shader_effect *effect = it.value;
+
+            vkDestroyPipelineLayout(renderer->device, effect->pipeline_layout, NULL);
+            rg_destroy_array(&effect->shader_stages);
+        }
+
+        // Clean storage itself
+        rg_destroy_storage(&renderer->shader_effects);
     }
 }
 
@@ -1376,15 +1489,19 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
 
     // --=== Init various storages ===--
 
-    // Init shaders map
-    renderer->shaders = rg_create_handle_storage();
+    // Init shader_modules map
+    renderer->shader_modules = rg_create_storage(sizeof(rg_shader_module));
+    renderer->shader_effects = rg_create_storage(sizeof(rg_shader_effect));
 
     return renderer;
 }
 
 void rg_destroy_renderer(rg_renderer **renderer)
 {
-    // Clear shaders
+    // Clear shader effects
+    rg_renderer_clear_shader_effects(*renderer);
+
+    // Clear shader_modules
     rg_renderer_clear_shaders(*renderer);
 
     // Destroy swapchains
@@ -1424,5 +1541,7 @@ void rg_destroy_renderer(rg_renderer **renderer)
     // Thus, the user doesn't have to do it themselves
     *renderer = NULL;
 }
+
+// endregion
 
 #endif

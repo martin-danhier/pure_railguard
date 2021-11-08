@@ -14,7 +14,7 @@ cmake-build-release
 cmake-build-debugwithrelinfo
 cmake-build-debug-mingw
 
-# Compiled shaders
+# Compiled shader_modules
 *.spv
 
 # Md file not added to git to write things to help think about the structure
