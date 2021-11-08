@@ -1,64 +1,40 @@
 {
-    // Disable C/C++ features that are already covered by ccls
-    "C_Cpp.intelliSenseEngine": "Disabled",
-    "C_Cpp.autocomplete": "Disabled",
-    "C_Cpp.errorSquiggles": "Disabled",
-    "C_Cpp.formatting": "Disabled",
-    // ccls settings
-    "ccls.cache.directory": ".ccls-cache",
-    "ccls.codeLens.enabled": false,
-    "ccls.highlight.type.colors": [
-        "#4ec9b0",
-    ],
-    "ccls.highlight.typeAlias.face": [
-        "type"
-    ],
-    "ccls.highlight.enum.face": [
-        "variable"
-    ],
-    "ccls.highlight.variable.face": ["enabled"],
-    "ccls.highlight.type.face": [
-        "enabled"
-    ],
-    "ccls.highlight.namespace.colors": [
-        "#4ec9b0"
-    ],
-    "ccls.highlight.variable.colors": [
-        "#9cdcfe",
-    ],
-    // Formatter
-    "editor.defaultFormatter": "xaver.clang-format",
-    // Hide files to keep the side panel clean
-    "files.exclude": {
-        "**/.git": false,
-        "**/.svn": false,
-        "**/.hg": false,
-        "**/CVS": false,
-        "**/.DS_Store": false,
-        "**/Thumbs.db": false,
-        "premake5.lua": false,
-        ".gitignore": false,
-        ".ccls": false,
-        ".clang-format": false,
-        "cmakebuild": false,
-        "build": false,
-        "bin": false,
-        ".vscode": false,
-        ".idea": false,
-        ".ccls-cache": false,
-        "external": false,
-        ".gitmodules": false
-    },
-    "explorerExclude.backup": null,
-    // File associations
+    // General editor config
     "files.associations": {
-        "*.c": "c",
-        "*.h": "c"
+        "*.h": "c",
+        "*.c": "c"
     },
+    // Linter config
+    "C_Cpp.default.configurationProvider": "numaru.vscode-cmake-lite",
+    "C_Cpp.default.defines": [
+        "RENDERER_VULKAN",
+        "WINDOW_SDL2",
+        "MEMORY_CHECKS",
+        "USE_VK_VALIDATION_LAYERS"
+    ],
+    "C_Cpp.default.includePath": [
+        "${workspaceFolder}/include",
+        "${workspaceFolder}/external/vma/include",
+        "${workspaceFolder}/external/volk",
+        "${VULKAN_SDK}/include",
+        "${SDL2_PATH}/include",
+    ],
+    // Spell check
     "cSpell.words": [
-        "MSVC",
-        "Railguard",
+        "cstrs",
+        "Giessen",
+        "MSAA",
+        "SFLOAT",
         "volk"
     ],
-    // "C_Cpp.default.configurationProvider": "numaru.vscode-cmake-lite"
+    "files.exclude": {
+        "**/.git": false,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/CVS": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true
+    },
+    "explorerExclude.backup": null,
+    
 }

@@ -1,22 +1,6 @@
 {
     "recommendations": [
         "xaver.clang-format",
-        "ms-vscode.cpptools",
-        "ccls-project.ccls",
-        "streetsidesoftware.code-spell-checker",
-        "sumneko.lua",
-        "slevesque.shader",
-        "majicdave.vscode-shaderc",
-        "redhat.vscode-yaml"
-    ],
-    "unwantedRecommendations": [
-        "twxs.cmake",
-        "numaru.vscode-cmake-lite",
-        "googlecloudtools.cloudcode",
-        "firefox-devtools.vscode-firefox-debug",
-        "ms-kubernetes-tools.vscode-kubernetes-tools",
-        "ms-vscode.cpptools-extension-pack",
-        "mindaro.mindaro",
-        "austin.code-gnu-global"
+        "numaru.vscode-cmake-lite"
     ]
 }

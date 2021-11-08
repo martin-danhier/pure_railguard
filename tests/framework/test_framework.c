@@ -293,7 +293,9 @@ bool tf_manager_run_test(tf_test_manager *manager, const char *name)
 
                 printf("] %s:%llu\n\t%s\n", current_error->file, current_error->line_number, current_error->message);
             }
-
+            
+            printf("\n");
+            
             return success;
         }
     }
