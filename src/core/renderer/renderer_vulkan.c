@@ -79,6 +79,12 @@ typedef struct rg_swapchain
     rg_window          *target_window;
     rg_event_handler_id window_resize_event_handler_id;
     VkSurfaceKHR        surface;
+    // Store the built pipelines
+    // We store them in the swapchain because it depends on the extent of the window
+    rg_hash_map *pipelines;
+    uint64_t     built_effects_version;
+    // Render stages
+    rg_array render_stages;
     // Pointer to renderer so that we can go back to it from the swapchain
     rg_renderer *renderer;
 } rg_swapchain;
@@ -198,9 +204,10 @@ typedef struct rg_renderer
     rg_storage *models;
     rg_storage *render_nodes;
 
-    // Render stages
-    rg_array render_stages;
-
+    // Number incremented at each created shader effect
+    // It is stored in the swapchain when effects are built
+    // If the number in the swapchain is different, we need to rebuild the pipelines
+    uint64_t effects_version;
 } rg_renderer;
 
 // endregion
@@ -779,6 +786,544 @@ static inline void rg_renderer_wait_for_fence(rg_renderer *renderer, VkFence fen
 
 // --==== RENDERER ====--
 
+// region Shaders functions
+
+rg_shader_module_id rg_renderer_load_shader(rg_renderer *renderer, rg_string shader_path, rg_shader_stage stage)
+{
+    // Load binary from file
+    uint32_t *code      = NULL;
+    size_t    code_size = 0;
+    rg_renderer_check(rg_load_file_binary(shader_path, (void **) &code, &code_size), "Couldn't load shader binary");
+
+    // Create shader vk_module
+    VkShaderModuleCreateInfo shader_module_create_info = {
+        .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .pNext    = NULL,
+        .codeSize = code_size,
+        .pCode    = code,
+    };
+    VkShaderModule vk_module = VK_NULL_HANDLE;
+    vk_check(vkCreateShaderModule(renderer->device, &shader_module_create_info, NULL, &vk_module), "Couldn't create shader vk_module");
+
+    // Free the code
+    if (code != NULL)
+    {
+        rg_free(code);
+    }
+
+    // Create the shader vk_module
+    rg_shader_module module = {
+        .vk_module = vk_module,
+        .stage     = stage,
+    };
+
+    // Add the shader to the storage
+    rg_shader_module_id shader_id = rg_storage_push(renderer->shader_modules, &module);
+
+    // Get the name of the shader without the beginning of the path
+    size_t    i = rg_string_find_char_reverse(shader_path, '/');
+    rg_string shader_name;
+    if (i == -1)
+    {
+        shader_name = shader_path;
+    }
+    else
+    {
+        shader_name = rg_string_get_substring(shader_path, i + 1, rg_string_end(shader_path));
+    }
+
+    printf("Loaded shader \"%s\"\n", shader_name.data);
+
+    // Return the shader id
+    return shader_id;
+}
+
+void rg_renderer_destroy_shader(rg_renderer *renderer, rg_shader_module_id shader_id)
+{
+    // Get shader module
+    rg_shader_module *module = rg_storage_get(renderer->shader_modules, shader_id);
+    if (module != NULL)
+    {
+        // Destroy shader module
+        vkDestroyShaderModule(renderer->device, module->vk_module, NULL);
+
+        // Remove from map
+        rg_storage_erase(renderer->shader_modules, shader_id);
+    }
+}
+
+void rg_renderer_clear_shaders(rg_renderer *renderer)
+{
+    if (renderer->shader_modules != NULL)
+    {
+        // Destroy all shader modules
+        rg_storage_it it = rg_storage_iterator(renderer->shader_modules);
+        while (rg_storage_next(&it))
+        {
+            rg_shader_module *module = it.value;
+            vkDestroyShaderModule(renderer->device, module->vk_module, NULL);
+        }
+
+        // Destroy map
+        rg_destroy_storage(&renderer->shader_modules);
+    }
+}
+
+rg_shader_module *rg_renderer_get_shader(rg_renderer *renderer, rg_shader_module_id shader_id)
+{
+    // Get shader module
+    return (rg_shader_module *) rg_storage_get(renderer->shader_modules, shader_id);
+}
+
+// endregion
+
+// region Shader effects and pipelines functions
+
+VkPipeline rg_render_build_shader_effect(rg_renderer *renderer, VkExtent2D window_extent, rg_shader_effect *effect)
+{
+    // This function will take the data contained in the effect and build a pipeline with it
+    // First, create all the structs we will need in the pipeline create info
+
+    // region Create shader stages
+
+    rg_array shader_stages = rg_create_array(effect->shader_stages.count, sizeof(VkPipelineShaderStageCreateInfo));
+    for (uint32_t i = 0; i < effect->shader_stages.count; i++)
+    {
+        // Get shader module
+        rg_shader_module *shader_module = rg_renderer_get_shader(renderer, ((rg_shader_module_id *) effect->shader_stages.data)[i]);
+        rg_renderer_check(shader_module != NULL, "Couldn't get shader module");
+
+        // Convert stage flags
+        VkShaderStageFlagBits stage_flags = 0;
+        switch (shader_module->stage)
+        {
+            case RG_SHADER_STAGE_VERTEX: stage_flags = VK_SHADER_STAGE_VERTEX_BIT; break;
+            case RG_SHADER_STAGE_FRAGMENT: stage_flags = VK_SHADER_STAGE_FRAGMENT_BIT; break;
+            default: rg_renderer_check(false, "Unknown shader stage");
+        }
+
+        // Create shader stage
+        ((VkPipelineShaderStageCreateInfo *) shader_stages.data)[i] = (VkPipelineShaderStageCreateInfo) {
+            .sType               = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .pNext               = NULL,
+            .flags               = 0,
+            .stage               = stage_flags,
+            .module              = shader_module->vk_module,
+            .pName               = "main",
+            .pSpecializationInfo = NULL,
+        };
+    }
+
+    // endregion
+
+    // region Create vertex input state
+
+    // Default for now because we don't have vertex input
+    VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = {
+        .sType                           = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .pNext                           = NULL,
+        .flags                           = 0,
+        .vertexBindingDescriptionCount   = 0,
+        .pVertexBindingDescriptions      = NULL,
+        .vertexAttributeDescriptionCount = 0,
+        .pVertexAttributeDescriptions    = NULL,
+    };
+
+    // endregion
+
+    // region Create input assembly state
+
+    VkPipelineInputAssemblyStateCreateInfo input_assembly_state_create_info = {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .pNext                  = NULL,
+        .flags                  = 0,
+        .topology               = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .primitiveRestartEnable = VK_FALSE,
+    };
+
+    // endregion
+
+    // region Create viewport state
+
+    VkViewport viewport = {
+        // Start in the corner
+        .x = 0.0f,
+        .y = 0.0f,
+        // Scale to the size of the window
+        .width  = (float) window_extent.width,
+        .height = (float) window_extent.height,
+        // Depth range is 0.0f to 1.0f
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
+
+    VkRect2D scissor = {
+        // Start in the corner
+        .offset = (VkOffset2D) {0, 0},
+        // Scale to the size of the window
+        .extent = (VkExtent2D) {window_extent.width, window_extent.height},
+    };
+
+    VkPipelineViewportStateCreateInfo viewport_state_create_info = {
+        .sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .pNext         = NULL,
+        .flags         = 0,
+        .viewportCount = 1,
+        .pViewports    = &viewport,
+        .scissorCount  = 1,
+        .pScissors     = &scissor,
+    };
+
+    // endregion
+
+    // region Create rasterization state
+
+    VkPipelineRasterizationStateCreateInfo rasterization_state_create_info = {
+        .sType            = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .pNext            = NULL,
+        .flags            = 0,
+        .depthClampEnable = VK_FALSE,
+        // Keep the primitive in the rasterization stage
+        .rasterizerDiscardEnable = VK_FALSE,
+        .polygonMode             = VK_POLYGON_MODE_FILL,
+        // No backface culling
+        .cullMode  = VK_CULL_MODE_NONE,
+        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        // No depth bias
+        .depthBiasEnable         = VK_FALSE,
+        .depthBiasConstantFactor = 0.0f,
+        .depthBiasClamp          = 0.0f,
+        .depthBiasSlopeFactor    = 0.0f,
+        // Width of the line
+        .lineWidth = 1.0f,
+    };
+
+    // endregion
+
+    // region Create multisample state
+
+    VkPipelineMultisampleStateCreateInfo multisample_state_create_info = {
+        .sType                 = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .pNext                 = NULL,
+        .flags                 = 0,
+        .rasterizationSamples  = VK_SAMPLE_COUNT_1_BIT,
+        .sampleShadingEnable   = VK_FALSE,
+        .minSampleShading      = 1.0f,
+        .pSampleMask           = NULL,
+        .alphaToCoverageEnable = VK_FALSE,
+        .alphaToOneEnable      = VK_FALSE,
+    };
+
+    // endregion
+
+    // region Create color blend state
+
+    VkPipelineColorBlendAttachmentState color_blend_attachment_state = {
+        .blendEnable    = VK_FALSE,
+        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+    };
+
+    // No blending
+    VkPipelineColorBlendStateCreateInfo color_blend_state_create_info = {
+        .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .pNext           = NULL,
+        .flags           = 0,
+        .logicOpEnable   = VK_FALSE,
+        .logicOp         = VK_LOGIC_OP_COPY,
+        .attachmentCount = 1,
+        .pAttachments    = &color_blend_attachment_state,
+        .blendConstants  = {0.0f, 0.0f, 0.0f, 0.0f},
+    };
+
+    // endregion
+
+    // region Create depth stencil state
+
+    VkPipelineDepthStencilStateCreateInfo depth_stencil_state_create_info = {
+        .sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .pNext                 = NULL,
+        .flags                 = 0,
+        .depthTestEnable       = VK_FALSE,
+        .depthWriteEnable      = VK_FALSE,
+        .depthCompareOp        = VK_COMPARE_OP_ALWAYS,
+        .depthBoundsTestEnable = false,
+        .stencilTestEnable     = false,
+        .minDepthBounds        = 0.0f,
+        .maxDepthBounds        = 1.0f,
+    };
+
+    // endregion
+
+    // region Get render pass
+
+    VkRenderPass render_pass = VK_NULL_HANDLE;
+    switch (effect->render_stage_kind)
+    {
+        case RG_RENDER_STAGE_KIND_GEOMETRY: render_pass = renderer->passes.geometry_pass; break;
+        case RG_RENDER_STAGE_KIND_LIGHTING: render_pass = renderer->passes.lighting_pass; break;
+        default: rg_renderer_check(false, "Invalid render stage kind");
+    }
+
+    // endregion
+
+    // region Create pipeline
+
+    VkGraphicsPipelineCreateInfo pipeline_create_info = {
+        .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .pNext               = NULL,
+        .flags               = 0,
+        .stageCount          = shader_stages.count,
+        .pStages             = shader_stages.data,
+        .pVertexInputState   = &vertex_input_state_create_info,
+        .pInputAssemblyState = &input_assembly_state_create_info,
+        .pTessellationState  = NULL,
+        .pViewportState      = &viewport_state_create_info,
+        .pRasterizationState = &rasterization_state_create_info,
+        .pMultisampleState   = &multisample_state_create_info,
+        .pDepthStencilState  = &depth_stencil_state_create_info,
+        .pColorBlendState    = &color_blend_state_create_info,
+        .pDynamicState       = NULL,
+        .layout              = effect->pipeline_layout,
+        .renderPass          = render_pass,
+        .subpass             = 0,
+        .basePipelineHandle  = VK_NULL_HANDLE,
+        .basePipelineIndex   = -1,
+    };
+    VkPipeline pipeline = VK_NULL_HANDLE;
+    vk_check(vkCreateGraphicsPipelines(renderer->device, VK_NULL_HANDLE, 1, &pipeline_create_info, NULL, &pipeline),
+             "Failed to create pipeline");
+
+    // endregion
+
+    // Clean up
+    rg_destroy_array(&shader_stages);
+
+    return pipeline;
+}
+
+void rg_renderer_build_out_of_date_effects(rg_swapchain *swapchain)
+{
+    if (swapchain->built_effects_version < swapchain->renderer->effects_version)
+    {
+        // Build all effects
+        rg_storage_it it = rg_storage_iterator(swapchain->renderer->shader_effects);
+        while (rg_storage_next(&it))
+        {
+            // Don't build a pipeline that is already built
+            rg_hash_map_get_result get_result = rg_hash_map_get(swapchain->pipelines, it.id);
+            if (!get_result.exists)
+            {
+                // Store the pipeline with the same id as the effect
+                // That way, we can easily find the pipeline of a given effect
+                rg_hash_map_set(swapchain->pipelines,
+                                it.id,
+                                (rg_hash_map_value_t) {
+                                    .as_ptr = rg_render_build_shader_effect(swapchain->renderer, swapchain->viewport_extent, it.value),
+                                });
+            }
+        }
+
+        // Update the version
+        swapchain->built_effects_version = swapchain->renderer->effects_version;
+    }
+}
+
+void rg_renderer_clear_pipelines(rg_swapchain *swapchain)
+{
+    // Destroy all pipelines
+    rg_hash_map_it it = rg_hash_map_iterator(swapchain->pipelines);
+    while (rg_hash_map_next(&it))
+    {
+        vkDestroyPipeline(swapchain->renderer->device, it.value.as_ptr, NULL);
+    }
+
+    // Clear the map
+    rg_hash_map_clear(swapchain->pipelines);
+
+    // Reset the version
+    swapchain->built_effects_version = 0;
+}
+
+void rg_renderer_recreate_pipelines(rg_swapchain *swapchain)
+{
+    // Destroy all pipelines
+    rg_renderer_clear_pipelines(swapchain);
+
+    // Build all effects
+    rg_renderer_build_out_of_date_effects(swapchain);
+}
+
+void rg_renderer_destroy_pipeline(rg_swapchain *swapchain, rg_shader_effect_id effect_id)
+{
+    if (swapchain->enabled)
+    {
+        // Get the pipeline
+        rg_hash_map_get_result get_result = rg_hash_map_get(swapchain->pipelines, effect_id);
+        if (get_result.exists)
+        {
+            vkDestroyPipeline(swapchain->renderer->device, get_result.value.as_ptr, NULL);
+            rg_hash_map_erase(swapchain->pipelines, effect_id);
+        }
+    }
+}
+
+rg_shader_effect_id rg_renderer_create_shader_effect(rg_renderer         *renderer,
+                                                     rg_shader_module_id *stages,
+                                                     uint32_t             stage_count,
+                                                     rg_render_stage_kind render_stage_kind)
+{
+    rg_renderer_check(stage_count > 0, "Attempted to create a shader effect with 0 stages");
+    rg_renderer_check(renderer != NULL, NULL);
+    rg_renderer_check(stages != NULL, NULL);
+
+    // Create shader effect
+    rg_shader_effect shader_effect;
+    shader_effect.render_stage_kind = render_stage_kind;
+
+    // Create array of stages
+    shader_effect.shader_stages = rg_create_array(stage_count, sizeof(rg_shader_module_id));
+    rg_renderer_check(memcpy(shader_effect.shader_stages.data, stages, stage_count * sizeof(rg_shader_module_id)) != NULL,
+                      "Couldn't copy shader stages");
+
+    // Create pipeline layout
+    VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .pNext                  = NULL,
+        .flags                  = 0,
+        .setLayoutCount         = 0,
+        .pSetLayouts            = NULL,
+        .pushConstantRangeCount = 0,
+        .pPushConstantRanges    = NULL,
+    };
+    shader_effect.pipeline_layout = VK_NULL_HANDLE;
+    vk_check(vkCreatePipelineLayout(renderer->device, &pipeline_layout_create_info, NULL, &shader_effect.pipeline_layout),
+             "Couldn't create pipeline layout");
+
+    // Store effect
+    rg_shader_effect_id effect_id = rg_storage_push(renderer->shader_effects, &shader_effect);
+    if (effect_id == RG_STORAGE_NULL_ID)
+    {
+        rg_renderer_check(false, "Couldn't store shader effect");
+    }
+
+    // Increment the version so that the swapchains rebuild the pipelines
+    renderer->effects_version++;
+
+    return effect_id;
+}
+
+void rg_renderer_clear_shader_effects(rg_renderer *renderer)
+{
+    if (renderer->shader_effects != NULL)
+    {
+        // Clean content of storage
+        rg_storage_it it = rg_storage_iterator(renderer->shader_effects);
+        while (rg_storage_next(&it))
+        {
+            rg_shader_effect *effect = it.value;
+
+            vkDestroyPipelineLayout(renderer->device, effect->pipeline_layout, NULL);
+            rg_destroy_array(&effect->shader_stages);
+        }
+
+        // Clean storage itself
+        rg_destroy_storage(&renderer->shader_effects);
+    }
+}
+
+void rg_renderer_destroy_shader_effect(rg_renderer *renderer, rg_shader_effect_id effect_id)
+{
+    // Get effect
+    rg_shader_effect *effect = rg_storage_get(renderer->shader_effects, effect_id);
+    if (effect != NULL)
+    {
+        // Destroy effect
+        vkDestroyPipelineLayout(renderer->device, effect->pipeline_layout, NULL);
+        rg_destroy_array(&effect->shader_stages);
+
+        // Remove from map
+        rg_storage_erase(renderer->shader_effects, effect_id);
+
+        // Destroy the pipelines
+        for (uint32_t i = 0; i < renderer->swapchains.count; i++)
+        {
+            rg_renderer_destroy_pipeline(&((rg_swapchain *) renderer->swapchains.data)[i], effect_id);
+        }
+    }
+}
+
+// endregion
+
+// region Frame functions
+
+static inline void rg_wait_for_current_fence(rg_renderer *renderer)
+{
+    rg_renderer_wait_for_fence(renderer, rg_renderer_get_current_frame(renderer)->render_fence);
+}
+
+void rg_renderer_wait_for_all_fences(rg_renderer *renderer)
+{
+    // Get fences in array
+    VkFence fences[NB_OVERLAPPING_FRAMES];
+    for (uint64_t i = 0; i < NB_OVERLAPPING_FRAMES; i++)
+    {
+        fences[i] = renderer->frames[i].render_fence;
+    }
+
+    vk_check(vkWaitForFences(renderer->device, NB_OVERLAPPING_FRAMES, fences, VK_TRUE, WAIT_FOR_FENCES_TIMEOUT),
+             "Failed to wait for fences");
+}
+
+VkCommandBuffer rg_renderer_begin_recording(rg_renderer *renderer)
+{
+    // Get current frame
+    rg_frame_data *frame = rg_renderer_get_current_frame(renderer);
+
+    // Reset command buffer
+    vk_check(vkResetCommandBuffer(frame->command_buffer, 0), NULL);
+
+    // Begin command buffer
+    VkCommandBufferBeginInfo begin_info = {
+        .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext            = VK_NULL_HANDLE,
+        .pInheritanceInfo = VK_NULL_HANDLE,
+        .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+    };
+    vk_check(vkBeginCommandBuffer(frame->command_buffer, &begin_info), NULL);
+
+    return frame->command_buffer;
+}
+
+void rg_renderer_end_recording_and_submit(rg_renderer *renderer)
+{
+    // Get current frame
+    rg_frame_data *frame = rg_renderer_get_current_frame(renderer);
+
+    // End command buffer
+    vk_check(vkEndCommandBuffer(frame->command_buffer), NULL);
+
+    // Submit command buffer
+    VkPipelineStageFlags wait_stage  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    VkSubmitInfo         submit_info = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = VK_NULL_HANDLE,
+        // Wait until the image to render is ready
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores    = &frame->present_semaphore,
+        // Pipeline stage
+        .pWaitDstStageMask = &wait_stage,
+        // Link the command buffer
+        .commandBufferCount = 1,
+        .pCommandBuffers    = &frame->command_buffer,
+        // Signal the render semaphore
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores    = &frame->render_semaphore,
+    };
+    vk_check(vkQueueSubmit(renderer->graphics_queue.queue, 1, &submit_info, frame->render_fence), NULL);
+}
+
+// endregion
+
 // region Swapchain functions
 
 void rg_init_swapchain_inner(rg_renderer *renderer, rg_swapchain *swapchain, rg_extent_2d extent)
@@ -993,6 +1538,9 @@ void rg_renderer_add_window(rg_renderer *renderer, uint32_t window_index, rg_win
 
     // endregion
 
+    swapchain->pipelines             = rg_create_hash_map();
+    swapchain->built_effects_version = 0;
+
     swapchain->swapchain_image_format = rg_select_surface_format(renderer, window);
 
     // Get window extent
@@ -1000,6 +1548,32 @@ void rg_renderer_add_window(rg_renderer *renderer, uint32_t window_index, rg_win
 
     // Create the swapchain and the images
     rg_init_swapchain_inner(renderer, swapchain, extent);
+
+    // region Init render stages
+
+    // Stages are hardcoded for now
+    // Using a dynamic array allows us to define a parameter to this function to define the stages
+    swapchain->render_stages = rg_create_array(RENDER_STAGE_COUNT, sizeof(rg_render_stage));
+
+    // Init stages
+    for (uint32_t i = 0; i < RENDER_STAGE_COUNT; i++)
+    {
+        rg_render_stage *stage = &((rg_render_stage *) swapchain->render_stages.data)[i];
+
+        // Init vector
+        rg_create_vector(5, sizeof(rg_render_batch), &stage->batches);
+
+        // Empty buffer (will be created later)
+        stage->indirect_buffer = (rg_allocated_buffer) {
+            .buffer     = VK_NULL_HANDLE,
+            .allocation = NULL,
+            .size       = 0,
+        };
+    }
+    (((rg_render_stage *) swapchain->render_stages.data)[0]).kind = RG_RENDER_STAGE_KIND_GEOMETRY;
+    (((rg_render_stage *) swapchain->render_stages.data)[1]).kind = RG_RENDER_STAGE_KIND_LIGHTING;
+
+    // endregion
 
     // region Register to window events
 
@@ -1059,11 +1633,24 @@ void rg_destroy_swapchain(rg_swapchain *swapchain)
     // Unregister window events
     rg_window_resize_event_unsubscribe(swapchain->target_window, swapchain->window_resize_event_handler_id);
 
+    // Destroy render stages
+    for (uint32_t i = 0; i < swapchain->render_stages.count; i++)
+    {
+        rg_render_stage *stage = &((rg_render_stage *) swapchain->render_stages.data)[i];
+        rg_destroy_vector(&stage->batches);
+        rg_renderer_destroy_buffer(swapchain->renderer->allocator, &stage->indirect_buffer);
+    }
+    rg_destroy_array(&swapchain->render_stages);
+
     // Cleanup
     rg_destroy_swapchain_inner(swapchain);
 
     // Destroy the surface
     vkDestroySurfaceKHR(swapchain->renderer->instance, swapchain->surface, NULL);
+
+    // Destroy the pipelines
+    rg_renderer_clear_pipelines(swapchain);
+    rg_destroy_hash_map(&swapchain->pipelines);
 
     // Disable it
     swapchain->enabled = false;
@@ -1078,21 +1665,27 @@ void rg_renderer_recreate_swapchain(rg_swapchain *swapchain, rg_extent_2d new_ex
 
     rg_renderer *renderer = swapchain->renderer;
 
+    // Wait for all fences
+    rg_renderer_wait_for_all_fences(renderer);
+
     // Destroy the old swapchain
     rg_destroy_swapchain_inner(swapchain);
 
     // Create the new swapchain
     rg_init_swapchain_inner(renderer, swapchain, new_extent);
+
+    // Recreate the pipelines
+    rg_renderer_recreate_pipelines(swapchain);
 }
 
-uint32_t rg_renderer_get_next_swapchain_image(rg_renderer *renderer, rg_swapchain *swapchain)
+uint32_t rg_renderer_get_next_swapchain_image(rg_swapchain *swapchain)
 {
     // Get current frame
-    rg_frame_data *current_frame = rg_renderer_get_current_frame(renderer);
+    rg_frame_data *current_frame = rg_renderer_get_current_frame(swapchain->renderer);
 
     // Get the next image
     uint32_t next_image_index = 0;
-    vk_check(vkAcquireNextImageKHR(renderer->device,
+    vk_check(vkAcquireNextImageKHR(swapchain->renderer->device,
                                    swapchain->vk_swapchain,
                                    SEMAPHORE_TIMEOUT,
                                    current_frame->present_semaphore,
@@ -1102,177 +1695,6 @@ uint32_t rg_renderer_get_next_swapchain_image(rg_renderer *renderer, rg_swapchai
 
     return next_image_index;
 }
-// endregion
-
-// region Shaders functions
-
-rg_shader_module_id rg_renderer_load_shader(rg_renderer *renderer, rg_string shader_path, rg_shader_stage stage)
-{
-    // Load binary from file
-    uint32_t *code      = NULL;
-    size_t    code_size = 0;
-    rg_renderer_check(rg_load_file_binary(shader_path, (void **) &code, &code_size), "Couldn't load shader binary");
-
-    // Create shader vk_module
-    VkShaderModuleCreateInfo shader_module_create_info = {
-        .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .pNext    = NULL,
-        .codeSize = code_size,
-        .pCode    = code,
-    };
-    VkShaderModule vk_module = VK_NULL_HANDLE;
-    vk_check(vkCreateShaderModule(renderer->device, &shader_module_create_info, NULL, &vk_module), "Couldn't create shader vk_module");
-
-    // Free the code
-    if (code != NULL)
-    {
-        rg_free(code);
-    }
-
-    // Create the shader vk_module
-    rg_shader_module module = {
-        .vk_module = vk_module,
-        .stage     = stage,
-    };
-
-    // Add the shader to the storage
-    rg_shader_module_id shader_id = rg_storage_push(renderer->shader_modules, &module);
-
-    // Get the name of the shader without the beginning of the path
-    size_t    i = rg_string_find_char_reverse(shader_path, '/');
-    rg_string shader_name;
-    if (i == -1)
-    {
-        shader_name = shader_path;
-    }
-    else
-    {
-        shader_name = rg_string_get_substring(shader_path, i + 1, rg_string_end(shader_path));
-    }
-
-    printf("Loaded shader \"%s\"\n", shader_name.data);
-
-    // Return the shader id
-    return shader_id;
-}
-
-void rg_renderer_destroy_shader(rg_renderer *renderer, rg_shader_module_id shader_id)
-{
-    // Get shader module
-    rg_shader_module *module = rg_storage_get(renderer->shader_modules, shader_id);
-    if (module != NULL)
-    {
-        // Destroy shader module
-        vkDestroyShaderModule(renderer->device, module->vk_module, NULL);
-
-        // Remove from map
-        rg_storage_erase(renderer->shader_modules, shader_id);
-    }
-}
-
-void rg_renderer_clear_shaders(rg_renderer *renderer)
-{
-    if (renderer->shader_modules != NULL)
-    {
-        // Destroy all shader modules
-        rg_storage_it it = rg_storage_iterator(renderer->shader_modules);
-        while (rg_storage_next(&it))
-        {
-            rg_shader_module *module = it.value;
-            vkDestroyShaderModule(renderer->device, module->vk_module, NULL);
-        }
-
-        // Destroy map
-        rg_destroy_storage(&renderer->shader_modules);
-    }
-}
-
-rg_shader_module *rg_renderer_get_shader(rg_renderer *renderer, rg_shader_module_id shader_id)
-{
-    // Get shader module
-    return (rg_shader_module *) rg_storage_get(renderer->shader_modules, shader_id);
-}
-
-// endregion
-
-// region Shader effects functions
-
-rg_shader_effect_id rg_renderer_create_shader_effect(rg_renderer         *renderer,
-                                                     rg_shader_module_id *stages,
-                                                     uint32_t             stage_count,
-                                                     rg_render_stage_kind render_stage_kind)
-{
-    rg_renderer_check(stage_count > 0, "Attempted to create a shader effect with 0 stages");
-    rg_renderer_check(renderer != NULL, NULL);
-    rg_renderer_check(stages != NULL, NULL);
-
-    // Create shader effect
-    rg_shader_effect shader_effect;
-    shader_effect.render_stage_kind = render_stage_kind;
-
-    // Create array of stages
-    shader_effect.shader_stages = rg_create_array(stage_count, sizeof(rg_shader_module_id));
-    rg_renderer_check(memcpy(shader_effect.shader_stages.data, stages, stage_count * sizeof(rg_shader_module_id)) != NULL,
-                      "Couldn't copy shader stages");
-
-    // Create pipeline layout
-    VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
-        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .pNext                  = NULL,
-        .flags                  = 0,
-        .setLayoutCount         = 0,
-        .pSetLayouts            = NULL,
-        .pushConstantRangeCount = 0,
-        .pPushConstantRanges    = NULL,
-    };
-    shader_effect.pipeline_layout = VK_NULL_HANDLE;
-    vk_check(vkCreatePipelineLayout(renderer->device, &pipeline_layout_create_info, NULL, &shader_effect.pipeline_layout),
-             "Couldn't create pipeline layout");
-
-    // Store effect
-    rg_shader_effect_id effect_id = rg_storage_push(renderer->shader_effects, &shader_effect);
-    if (effect_id == RG_STORAGE_NULL_ID)
-    {
-        rg_renderer_check(false, "Couldn't store shader effect");
-    }
-
-    return effect_id;
-}
-
-void rg_renderer_clear_shader_effects(rg_renderer *renderer)
-{
-    if (renderer->shader_effects != NULL)
-    {
-        // Clean content of storage
-        rg_storage_it it = rg_storage_iterator(renderer->shader_effects);
-        while (rg_storage_next(&it))
-        {
-            rg_shader_effect *effect = it.value;
-
-            vkDestroyPipelineLayout(renderer->device, effect->pipeline_layout, NULL);
-            rg_destroy_array(&effect->shader_stages);
-        }
-
-        // Clean storage itself
-        rg_destroy_storage(&renderer->shader_effects);
-    }
-}
-
-void rg_renderer_destroy_shader_effect(rg_renderer *renderer, rg_shader_effect_id effect_id)
-{
-    // Get effect
-    rg_shader_effect *effect = rg_storage_get(renderer->shader_effects, effect_id);
-    if (effect != NULL)
-    {
-        // Destroy effect
-        vkDestroyPipelineLayout(renderer->device, effect->pipeline_layout, NULL);
-        rg_destroy_array(&effect->shader_stages);
-
-        // Remove from map
-        rg_storage_erase(renderer->shader_effects, effect_id);
-    }
-}
-
 // endregion
 
 // region Material templates functions
@@ -1624,85 +2046,18 @@ void rg_renderer_clear_render_nodes(rg_renderer *renderer)
 
 // endregion
 
-// region Frame functions
-
-static inline void rg_wait_for_current_fence(rg_renderer *renderer)
-{
-    rg_renderer_wait_for_fence(renderer, rg_renderer_get_current_frame(renderer)->render_fence);
-}
-
-void rg_renderer_wait_for_all_fences(rg_renderer *renderer)
-{
-    // Get fences in array
-    VkFence fences[NB_OVERLAPPING_FRAMES];
-    for (uint64_t i = 0; i < NB_OVERLAPPING_FRAMES; i++)
-    {
-        fences[i] = renderer->frames[i].render_fence;
-    }
-
-    vk_check(vkWaitForFences(renderer->device, NB_OVERLAPPING_FRAMES, fences, VK_TRUE, WAIT_FOR_FENCES_TIMEOUT),
-             "Failed to wait for fences");
-}
-
-VkCommandBuffer rg_renderer_begin_recording(rg_renderer *renderer)
-{
-    // Get current frame
-    rg_frame_data *frame = rg_renderer_get_current_frame(renderer);
-
-    // Reset command buffer
-    vk_check(vkResetCommandBuffer(frame->command_buffer, 0), NULL);
-
-    // Begin command buffer
-    VkCommandBufferBeginInfo begin_info = {
-        .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .pNext            = VK_NULL_HANDLE,
-        .pInheritanceInfo = VK_NULL_HANDLE,
-        .flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-    };
-    vk_check(vkBeginCommandBuffer(frame->command_buffer, &begin_info), NULL);
-
-    return frame->command_buffer;
-}
-
-void rg_renderer_end_recording_and_submit(rg_renderer *renderer)
-{
-    // Get current frame
-    rg_frame_data *frame = rg_renderer_get_current_frame(renderer);
-
-    // End command buffer
-    vk_check(vkEndCommandBuffer(frame->command_buffer), NULL);
-
-    // Submit command buffer
-    VkPipelineStageFlags wait_stage  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    VkSubmitInfo         submit_info = {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .pNext = VK_NULL_HANDLE,
-        // Wait until the image to render is ready
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores    = &frame->present_semaphore,
-        // Pipeline stage
-        .pWaitDstStageMask = &wait_stage,
-        // Link the command buffer
-        .commandBufferCount = 1,
-        .pCommandBuffers    = &frame->command_buffer,
-        // Signal the render semaphore
-        .signalSemaphoreCount = 1,
-        .pSignalSemaphores    = &frame->render_semaphore,
-    };
-    vk_check(vkQueueSubmit(renderer->graphics_queue.queue, 1, &submit_info, frame->render_fence), NULL);
-}
-
-// endregion
 
 // region Stages functions
 
-void rg_renderer_update_stage_cache(rg_renderer *renderer)
+void rg_renderer_update_stage_cache(rg_swapchain *swapchain)
 {
+    rg_renderer *renderer = swapchain->renderer;
+
     // For each stage
-    for (uint32_t i = 0; i < renderer->render_stages.count; i++)
+    for (uint32_t i = 0; i < swapchain->render_stages.count; i++)
     {
         // Get stage
-        rg_render_stage *stage = &((rg_render_stage *) renderer->render_stages.data)[i];
+        rg_render_stage *stage = &((rg_render_stage *) swapchain->render_stages.data)[i];
 
         // Clear cache
         rg_vector_clear(&stage->batches);
@@ -1735,12 +2090,15 @@ void rg_renderer_update_stage_cache(rg_renderer *renderer)
                                 rg_material *material = materials_it.value;
                                 if (material->material_template_id == material_templates_it.id)
                                 {
+                                    // Get the pipeline for that effect
+                                    rg_hash_map_get_result pipeline_get_result = rg_hash_map_get(swapchain->pipelines, effects_it.id);
+                                    rg_renderer_check(pipeline_get_result.exists, NULL);
+
                                     // Add a batch
                                     rg_render_batch batch = {
-                                        .count  = material->models_using_material.count,
-                                        .offset = models.count,
-                                        // TODO find the pipeline
-                                        .pipeline = VK_NULL_HANDLE,
+                                        .count    = material->models_using_material.count,
+                                        .offset   = models.count,
+                                        .pipeline = pipeline_get_result.value.as_ptr,
                                     };
                                     rg_vector_push_back(&stage->batches, &batch);
 
@@ -1806,6 +2164,31 @@ void rg_renderer_update_stage_cache(rg_renderer *renderer)
 
         // Clean up
         rg_destroy_vector(&models);
+    }
+}
+
+void rg_renderer_draw_from_cache(rg_render_stage *stage, VkCommandBuffer cmd)
+{
+    const uint32_t draw_stride = sizeof(VkDrawIndirectCommand);
+
+    VkPipeline bound_pipeline = VK_NULL_HANDLE;
+
+    // For each batch
+    rg_vector_it it = rg_vector_iterator(&stage->batches);
+    while (rg_vector_next(&it))
+    {
+        rg_render_batch *batch = it.value;
+
+        // If the pipeline is different from the last one, bind it
+        if (bound_pipeline != batch->pipeline)
+        {
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, batch->pipeline);
+            bound_pipeline = batch->pipeline;
+        }
+
+        // Draw batch of commands
+        uint32_t draw_offset = draw_stride * batch->offset;
+        vkCmdDrawIndirect(cmd, stage->indirect_buffer.buffer, draw_offset, batch->count, draw_stride);
     }
 }
 
@@ -2159,6 +2542,7 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
     renderer->materials          = rg_create_storage(sizeof(rg_material));
     renderer->models             = rg_create_storage(sizeof(rg_model));
     renderer->render_nodes       = rg_create_storage(sizeof(rg_render_node));
+    renderer->effects_version    = 0;
 
     // --=== Init frames ===--
 
@@ -2217,34 +2601,6 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
 
     // endregion
 
-    // --=== Init render stages ===--
-
-    // region Init render stages
-
-    // Stages are hardcoded for now
-    // Using a dynamic array allows us to define a parameter to this function to define the stages
-    renderer->render_stages = rg_create_array(RENDER_STAGE_COUNT, sizeof(rg_render_stage));
-
-    // Init stages
-    for (uint32_t i = 0; i < RENDER_STAGE_COUNT; i++)
-    {
-        rg_render_stage *stage = &((rg_render_stage *) renderer->render_stages.data)[i];
-
-        // Init vector
-        rg_create_vector(5, sizeof(rg_render_batch), &stage->batches);
-
-        // Empty buffer (will be created later)
-        stage->indirect_buffer = (rg_allocated_buffer) {
-            .buffer     = VK_NULL_HANDLE,
-            .allocation = NULL,
-            .size       = 0,
-        };
-    }
-    (((rg_render_stage *) renderer->render_stages.data)[0]).kind = RG_RENDER_STAGE_KIND_GEOMETRY;
-    (((rg_render_stage *) renderer->render_stages.data)[1]).kind = RG_RENDER_STAGE_KIND_LIGHTING;
-
-    // endregion
-
     return renderer;
 }
 
@@ -2252,15 +2608,6 @@ void rg_destroy_renderer(rg_renderer **renderer)
 {
     // Wait
     rg_renderer_wait_for_all_fences(*renderer);
-
-    // Destroy render stages
-    for (uint32_t i = 0; i < (*renderer)->render_stages.count; i++)
-    {
-        rg_render_stage *stage = &((rg_render_stage *) (*renderer)->render_stages.data)[i];
-        rg_destroy_vector(&stage->batches);
-        rg_renderer_destroy_buffer((*renderer)->allocator, &stage->indirect_buffer);
-    }
-    rg_destroy_array(&(*renderer)->render_stages);
 
     // Clear frames
     for (uint32_t i = 0; i < NB_OVERLAPPING_FRAMES; i++)
@@ -2334,11 +2681,74 @@ void rg_destroy_renderer(rg_renderer **renderer)
 
 void rg_renderer_draw(rg_renderer *renderer)
 {
-    // Wait for the current fence
-    rg_wait_for_current_fence(renderer);
+    // Get current frame
+    uint64_t       current_frame_index = rg_renderer_get_current_frame_index(renderer);
+    rg_frame_data *current_frame       = &renderer->frames[current_frame_index];
 
-    // Update render stages cache
-    rg_renderer_update_stage_cache(renderer);
+    // Wait for the fence
+    rg_renderer_wait_for_fence(renderer, current_frame->render_fence);
+
+    for (uint32_t i = 0; i < renderer->swapchains.count; i++)
+    {
+        rg_swapchain *swapchain = &((rg_swapchain *) renderer->swapchains.data)[i];
+
+        if (swapchain->enabled)
+        {
+            // Update pipelines if needed
+            rg_renderer_build_out_of_date_effects(swapchain);
+
+            // Update render stages cache
+            rg_renderer_update_stage_cache(swapchain);
+
+            // Begin recording
+            rg_renderer_begin_recording(renderer);
+
+            // Get swapchain image
+            uint32_t image_index = rg_renderer_get_next_swapchain_image(swapchain);
+
+            // Geometric pass TODO
+
+            // Lighting pass
+            VkClearValue clear_value = {
+                .color = {.float32 = {0.0f, 0.0f, 0.0f, 1.0f}},
+            };
+            VkRenderPassBeginInfo render_pass_begin_info = {
+                .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+                .pNext = NULL,
+                // Link framebuffer
+                .framebuffer = swapchain->swapchain_image_framebuffers[image_index],
+                // Render pass
+                .renderPass = renderer->passes.lighting_pass,
+                // Render area
+                .renderArea = {.offset = {0, 0}, .extent = swapchain->viewport_extent},
+                // Clear values
+                .clearValueCount = 1,
+                .pClearValues    = &clear_value,
+            };
+            vkCmdBeginRenderPass(current_frame->command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+            // Render
+            rg_renderer_draw_from_cache(&((rg_render_stage *) swapchain->render_stages.data)[1], current_frame->command_buffer);
+
+            vkCmdEndRenderPass(current_frame->command_buffer);
+
+
+            // End recording
+            rg_renderer_end_recording_and_submit(renderer);
+
+            // Present
+            VkPresentInfoKHR present_info = {
+                .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+                .pNext              = NULL,
+                .waitSemaphoreCount = 1,
+                .pWaitSemaphores    = &current_frame->render_semaphore,
+                .swapchainCount     = 1,
+                .pSwapchains        = &swapchain->vk_swapchain,
+                .pImageIndices      = &image_index,
+            };
+            vkQueuePresentKHR(renderer->graphics_queue.queue, &present_info);
+        }
+    }
 
     // Increment frame index
     renderer->current_frame_number++;

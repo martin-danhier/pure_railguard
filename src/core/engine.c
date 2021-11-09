@@ -35,7 +35,27 @@ rg_engine *rg_create_engine(void)
     rg_renderer_add_window(engine->renderer, 0, engine->window);
 
     // Load shaders
-    rg_renderer_load_shader(engine->renderer, RG_CSTR_CONST("resources/shaders/gbuffer.vert.spv"), RG_SHADER_STAGE_VERTEX);
+    rg_shader_module_id vertex_shader_id =
+        rg_renderer_load_shader(engine->renderer, RG_CSTR_CONST("resources/shaders/test.vert.spv"), RG_SHADER_STAGE_VERTEX);
+    rg_shader_module_id fragment_shader_id =
+        rg_renderer_load_shader(engine->renderer, RG_CSTR_CONST("resources/shaders/test.frag.spv"), RG_SHADER_STAGE_FRAGMENT);
+
+    // Create a shader effect
+    rg_shader_module_id stages[2] = {vertex_shader_id, fragment_shader_id};
+    rg_shader_effect_id shader_effect_id =
+        rg_renderer_create_shader_effect(engine->renderer, stages, 2, RG_RENDER_STAGE_KIND_LIGHTING);
+
+    // Create a material template
+    rg_material_template_id material_template_id = rg_renderer_create_material_template(engine->renderer, &shader_effect_id, 1);
+
+    // Create a material
+    rg_material_id material_id = rg_renderer_create_material(engine->renderer, material_template_id);
+
+    // Create a model
+    rg_model_id model_id = rg_renderer_create_model(engine->renderer, material_id);
+
+    // Create a render node
+    rg_render_node_id render_node_id = rg_renderer_create_render_node(engine->renderer, model_id);
 
     return engine;
 }
@@ -69,5 +89,8 @@ void rg_engine_run_main_loop(rg_engine *engine)
 
         // Handle events
         should_quit = rg_window_handle_events(engine->window);
+
+        // Run rendering
+        rg_renderer_draw(engine->renderer);
     }
 }
