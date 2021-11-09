@@ -704,7 +704,17 @@ void rg_renderer_destroy_image(VmaAllocator allocator, VkDevice device, rg_alloc
 
 // endregion
 
-// region Synchronisation functions
+// region Frame functions
+
+static inline uint64_t rg_renderer_get_current_frame_index(rg_renderer *renderer)
+{
+    return renderer->current_frame_number % NB_OVERLAPPING_FRAMES;
+}
+
+static inline rg_frame_data *rg_renderer_get_current_frame(rg_renderer *renderer)
+{
+    return &renderer->frames[rg_renderer_get_current_frame_index(renderer)];
+}
 
 static inline void rg_renderer_wait_for_fence(rg_renderer *renderer, VkFence fence)
 {
@@ -1022,6 +1032,24 @@ void rg_renderer_recreate_swapchain(rg_swapchain *swapchain, rg_extent_2d new_ex
 
     // Create the new swapchain
     rg_init_swapchain_inner(renderer, swapchain, new_extent);
+}
+
+uint32_t rg_renderer_get_next_swapchain_image(rg_renderer *renderer, rg_swapchain *swapchain)
+{
+    // Get current frame
+    rg_frame_data *current_frame = rg_renderer_get_current_frame(renderer);
+
+    // Get the next image
+    uint32_t next_image_index = 0;
+    vk_check(vkAcquireNextImageKHR(renderer->device,
+                                   swapchain->vk_swapchain,
+                                   SEMAPHORE_TIMEOUT,
+                                   current_frame->present_semaphore,
+                                   VK_NULL_HANDLE,
+                                   &next_image_index),
+             NULL);
+
+    return next_image_index;
 }
 // endregion
 
@@ -1547,19 +1575,9 @@ void rg_renderer_clear_render_nodes(rg_renderer *renderer)
 
 // region Frame functions
 
-static inline uint64_t rg_get_current_frame_index(rg_renderer *renderer)
-{
-    return renderer->current_frame_number % NB_OVERLAPPING_FRAMES;
-}
-
-static inline rg_frame_data *rg_get_current_frame(rg_renderer *renderer)
-{
-    return &renderer->frames[rg_get_current_frame_index(renderer)];
-}
-
 static inline void rg_wait_for_current_fence(rg_renderer *renderer)
 {
-    rg_renderer_wait_for_fence(renderer, rg_get_current_frame(renderer)->render_fence);
+    rg_renderer_wait_for_fence(renderer, rg_renderer_get_current_frame(renderer)->render_fence);
 }
 
 void rg_renderer_wait_for_all_fences(rg_renderer *renderer)
@@ -1578,7 +1596,7 @@ void rg_renderer_wait_for_all_fences(rg_renderer *renderer)
 VkCommandBuffer rg_renderer_begin_recording(rg_renderer *renderer)
 {
     // Get current frame
-    rg_frame_data *frame = rg_get_current_frame(renderer);
+    rg_frame_data *frame = rg_renderer_get_current_frame(renderer);
 
     // Reset command buffer
     vk_check(vkResetCommandBuffer(frame->command_buffer, 0), NULL);
@@ -1598,7 +1616,7 @@ VkCommandBuffer rg_renderer_begin_recording(rg_renderer *renderer)
 void rg_renderer_end_recording_and_submit(rg_renderer *renderer)
 {
     // Get current frame
-    rg_frame_data *frame = rg_get_current_frame(renderer);
+    rg_frame_data *frame = rg_renderer_get_current_frame(renderer);
 
     // End command buffer
     vk_check(vkEndCommandBuffer(frame->command_buffer), NULL);
