@@ -1,9 +1,7 @@
 # Editor directories and file
 .ccls-cache
 .ccls
-# VSCode is the official editor for this project. The others are supported, but won't be added to Git.
 .vs
-.idea
 
 # Build directories
 bin
@@ -14,7 +12,7 @@ cmake-build-release
 cmake-build-debugwithrelinfo
 cmake-build-debug-mingw
 
-# Compiled shaders
+# Compiled shader_modules
 *.spv
 
 # Md file not added to git to write things to help think about the structure

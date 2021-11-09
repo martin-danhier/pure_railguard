@@ -9,11 +9,12 @@
 #include "utils/test_io.h"
 #include "utils/test_storage.h"
 #include "utils/test_event_sender.h"
-#include "core/window.h"
 #include "utils/test_string.h"
+#include "core/window.h"
+#include "core/renderer.h"
 
 // Entry point for the tests
-int main(void)
+int main(int argc, char** argv)
 {
     int result;
 
@@ -22,9 +23,17 @@ int main(void)
     rg_mem_watcher_init();
 #endif
 
-    // Initialize the test framework
-    result = RUN_ALL_TESTS();
-
+    // If there is a test name in the arguments, run only that test
+    if (argc > 1)
+    {
+        // Run the test
+        result = RUN_TEST(argv[1]);
+    }
+    else
+    {
+        // Run all the tests
+        result = RUN_ALL_TESTS();
+    }
 #ifdef MEMORY_CHECKS
 
     // Print the results of the memory watcher

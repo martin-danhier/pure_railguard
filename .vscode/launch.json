@@ -4,33 +4,24 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+        // Windows
         {
-            "name": "Debug (Windows)",
-            "type": "cppdbg",
+            "name": "Debug Railguard (Windows)",
+            "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/railguard.exe",
+            "program": "${workspaceFolder}/build/Debug/railguard.exe",
             "console": "integratedTerminal",
-            "preLaunchTask": "Build with Ninja (Debug)",
-            "cwd": "${workspaceFolder}"
+            "preLaunchTask": "Build Railguard (Debug)",
+            "cwd": "${workspaceFolder}/build",
         },
         {
-            "name": "Debug",
-            "type": "cppdbg",
+            "name": "Debug Tests (Windows)",
+            "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/bin/railguard",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "MIMode": "gdb",
-            "miDebuggerPath": "gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ],
-            "preLaunchTask": "Build with Ninja (Debug)",
-        }
+            "program": "${workspaceFolder}/build/Debug/unit_tests.exe",
+            "console": "integratedTerminal",
+            "preLaunchTask": "Build Tests (Debug)",
+            "cwd": "${workspaceFolder}/build",
+        },
     ]
 }

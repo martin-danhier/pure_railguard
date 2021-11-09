@@ -3,9 +3,9 @@
     // for the documentation about the tasks.json format
     "version": "2.0.0",
     "tasks": [
-        // CMake task
+        // CMake tasks
         {
-            "label": "Run CMake",
+            "label": "Run CMake (Debug)",
             "type": "shell",
             "command": "cmake",
             "options": {
@@ -13,87 +13,75 @@
             },
             "args": [
                 ".",
-                "-GNinja",
-                "-Bbuild"
+                "-Bbuild",
+                "-DCMAKE_BUILD_TYPE=Debug"
             ],
         },
-        // Premake task
         {
-            "label": "Run Premake",
+            "label": "Run CMake (Release)",
             "type": "shell",
-            "command": "premake5",
             "options": {
                 "cwd": "${workspaceFolder}"
             },
-            "args": [
-                "gmake"
-            ],
             "windows": {
-                "command": "premake5",
+                "command": "cmake.exe",
                 "args": [
-                    "vs2019",
+                    ".",
+                    "-Bbuild",
+                    "-DCMAKE_BUILD_TYPE=Release",
+                    "-G",
+                    "NMake Makefiles"
                 ]
-            },
-            "problemMatcher": []
+            }
         },
-        // Build tasks
+        // Debug build tasks
         {
-            "label": "Build with Ninja (Debug)",
+            "label": "Build All (Debug)",
             "type": "shell",
-            "command": "ninja -C build",
             "options": {
-                "cwd": "${workspaceFolder}"
+                "cwd": "${workspaceFolder}/build"
             },
             "group": "build",
-            "dependsOn": "Run CMake"
-        },
-        {
-            "label": "Build (Debug)",
-            "type": "shell",
-            "command": "make",
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "args": [
-                "-C",
-                "build",
-                "config=debug_linux"
-            ],
-            "problemMatcher": [],
-            "group": "build",
-            "dependsOn": "Run Premake",
-            "windows": {
+            "dependsOn": "Run CMake (Debug)",
+            "windows":{
                 "command": "MSBuild.exe",
                 "args": [
-                    "./build/railguard.sln",
-                    "/property:Configuration=Debug",
-                    "/property:Platform=Win64"
+                    "ALL_BUILD.vcxproj",
+                    "/m:4"
                 ]
             }
         },
         {
-            "label": "Build (Release)",
+            "label": "Build Railguard (Debug)",
             "type": "shell",
-            "command": "make",
             "options": {
-                "cwd": "${workspaceFolder}"
+                "cwd": "${workspaceFolder}/build"
             },
-            "args": [
-                "-C",
-                "build",
-                "config=release_linux"
-            ],
-            "problemMatcher": [],
             "group": "build",
-            "dependsOn": "Run Premake",
-            "windows": {
+            "dependsOn": "Run CMake (Debug)",
+            "windows":{
                 "command": "MSBuild.exe",
                 "args": [
-                    "./build/railguard.sln",
-                    "/property:Configuration=Release",
-                    "/property:Platform=Win64"
+                    "railguard.vcxproj",
+                    "/m:4"
                 ]
             }
-        }
+        },
+        {
+            "label": "Build Tests (Debug)",
+            "type": "shell",
+            "options": {
+                "cwd": "${workspaceFolder}/build"
+            },
+            "group": "build",
+            "dependsOn": "Run CMake (Debug)",
+            "windows":{
+                "command": "MSBuild.exe",
+                "args": [
+                    "unit_tests.vcxproj",
+                    "/m:4"
+                ]
+            }
+        },
     ]
 }

@@ -152,7 +152,7 @@ if (DEFINED RENDERER_VULKAN)
             $ENV{VULKAN_SDK}/Bin32/
             ${PROJECT_SOURCE_DIR}/glslangValidator/bin/ # For GitHub Actions
             )
-    # find all the shader files under the shaders folder
+    # find all the shader files under the shader_modules folder
     file(GLOB_RECURSE glsl_source_files
             "${PROJECT_SOURCE_DIR}/resources/shaders/*.frag"
             "${PROJECT_SOURCE_DIR}/resources/shaders/*.vert"

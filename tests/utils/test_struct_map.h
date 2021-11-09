@@ -26,8 +26,6 @@ typedef struct rg_struct_map
     rg_hash_map hash_map; // We take advantage of the fact that we are in the same c file to avoid a pointer here
     rg_vector   storage;
     size_t      value_size;
-    size_t count;
-
 } rg_struct_map;
 
 // Test struct
