@@ -46,6 +46,7 @@ size_t                 rg_hash_map_count(rg_hash_map *hash_map);
 void                   rg_hash_map_erase(rg_hash_map *hash_map, rg_hash_map_key_t key);
 rg_hash_map_it         rg_hash_map_iterator(rg_hash_map *hash_map);
 bool                   rg_hash_map_next(rg_hash_map_it *it);
+void                   rg_hash_map_clear(rg_hash_map *hash_map);
 
 #ifdef UNIT_TESTS
 uint64_t rg_hash_map_hash(uint64_t key);

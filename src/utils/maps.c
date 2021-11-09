@@ -232,6 +232,7 @@ rg_hash_map_it rg_hash_map_iterator(rg_hash_map *hash_map)
         .next_index = 0,
     };
 }
+
 bool rg_hash_map_next(rg_hash_map_it *it)
 {
     rg_hash_map *map = it->hash_map;
@@ -343,6 +344,22 @@ void rg_hash_map_erase(rg_hash_map *hash_map, rg_hash_map_key_t key)
         }
     }
 }
+
+
+void rg_hash_map_clear(rg_hash_map *hash_map) {
+    if (hash_map->count > 0)
+    {
+        for (size_t i = 0; i < hash_map->capacity; i++)
+        {
+            hash_map->data[i] = (rg_hash_map_entry) {
+                .key   = RG_HASH_MAP_NULL_KEY,
+                .value = (rg_hash_map_value_t) {NULL},
+            };
+        }
+        hash_map->count = 0;
+    }
+}
+
 // endregion
 
 // --=== Struct Maps ===--
