@@ -25,6 +25,7 @@
 #define VULKAN_API_VERSION      VK_API_VERSION_1_1
 #define WAIT_FOR_FENCES_TIMEOUT 1000000000
 #define SEMAPHORE_TIMEOUT       1000000000
+#define RENDER_STAGE_COUNT      2
 
 // endregion
 
@@ -99,6 +100,8 @@ typedef struct rg_frame_data
 
 // = Material system =
 
+// region Material system
+
 typedef struct rg_shader_module
 {
     VkShaderModule  vk_module;
@@ -143,6 +146,24 @@ typedef struct rg_render_node
     rg_model_id model_id;
 } rg_render_node;
 
+// endregion
+
+// = Render stages =
+
+typedef struct rg_render_batch
+{
+    size_t     offset;
+    size_t     count;
+    VkPipeline pipeline;
+} rg_render_batch;
+
+typedef struct rg_render_stage
+{
+    rg_render_stage_kind kind;
+    rg_allocated_buffer  indirect_buffer;
+    rg_vector            batches;
+} rg_render_stage;
+
 // = Global renderer =
 
 typedef struct rg_renderer
@@ -177,6 +198,9 @@ typedef struct rg_renderer
     rg_storage *models;
     rg_storage *render_nodes;
 
+    // Render stages
+    rg_array render_stages;
+
 } rg_renderer;
 
 // endregion
@@ -192,6 +216,7 @@ rg_string rg_renderer_vk_result_to_str(VkResult result)
         case VK_SUCCESS: return RG_CSTR_CONST("VK_SUCCESS");
         case VK_ERROR_INITIALIZATION_FAILED: return RG_CSTR_CONST("VK_ERROR_INITIALIZATION_FAILED");
         case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR: return RG_CSTR_CONST("VK_ERROR_NATIVE_WINDOW_IN_USE_KHR");
+        case VK_TIMEOUT: return RG_CSTR_CONST("VK_TIMEOUT");
         default:
             return RG_CSTR_CONST(
                 "N"); // We just need a character that is different from VK_ ... because I don't want to convert the number to string
@@ -199,25 +224,33 @@ rg_string rg_renderer_vk_result_to_str(VkResult result)
 }
 
 void vk_check(VkResult result, const char *error_message)
+
 {
     if (result != VK_SUCCESS)
     {
-        // Pretty print error
-        rg_string result_str = rg_renderer_vk_result_to_str(result);
-        if (result_str.data[0] == 'N')
+        if (result == VK_TIMEOUT)
         {
-            fprintf(stderr, "[Vulkan Error] A Vulkan function call returned VkResult = %d !\n", result);
+            printf("[Vulkan Warning] A Vulkan function call returned VK_TIMEOUT !\n");
         }
         else
         {
-            fprintf(stderr, "[Vulkan Error] A Vulkan function call returned %s !\n", result_str.data);
+            // Pretty print error
+            rg_string result_str = rg_renderer_vk_result_to_str(result);
+            if (result_str.data[0] == 'N')
+            {
+                fprintf(stderr, "[Vulkan Error] A Vulkan function call returned VkResult = %d !\n", result);
+            }
+            else
+            {
+                fprintf(stderr, "[Vulkan Error] A Vulkan function call returned %s !\n", result_str.data);
+            }
+            // Optional custom error message precision
+            if (error_message != NULL)
+            {
+                fprintf(stderr, "Precision: %s\n", error_message);
+            }
+            exit(1);
         }
-        // Optional custom error message precision
-        if (error_message != NULL)
-        {
-            fprintf(stderr, "Precision: %s\n", error_message);
-        }
-        exit(1);
     }
 }
 
@@ -620,6 +653,12 @@ rg_allocated_buffer rg_renderer_create_buffer(VmaAllocator       allocator,
 
 void rg_renderer_destroy_buffer(VmaAllocator allocator, rg_allocated_buffer *buffer)
 {
+    // Ignore if already destroyed
+    if (buffer->buffer == VK_NULL_HANDLE)
+    {
+        return;
+    }
+
     vmaDestroyBuffer(allocator, buffer->buffer, buffer->allocation);
     buffer->buffer     = VK_NULL_HANDLE;
     buffer->allocation = VK_NULL_HANDLE;
@@ -700,6 +739,18 @@ void rg_renderer_destroy_image(VmaAllocator allocator, VkDevice device, rg_alloc
     vmaDestroyImage(allocator, image->image, image->allocation);
     image->image      = VK_NULL_HANDLE;
     image->allocation = VK_NULL_HANDLE;
+}
+
+void *rg_renderer_map_buffer(VmaAllocator allocator, rg_allocated_buffer *buffer)
+{
+    void *data = NULL;
+    vmaMapMemory(allocator, buffer->allocation, &data);
+    return data;
+}
+
+void rg_renderer_unmap_buffer(VmaAllocator allocator, rg_allocated_buffer *buffer)
+{
+    vmaUnmapMemory(allocator, buffer->allocation);
 }
 
 // endregion
@@ -1643,6 +1694,123 @@ void rg_renderer_end_recording_and_submit(rg_renderer *renderer)
 
 // endregion
 
+// region Stages functions
+
+void rg_renderer_update_stage_cache(rg_renderer *renderer)
+{
+    // For each stage
+    for (uint32_t i = 0; i < renderer->render_stages.count; i++)
+    {
+        // Get stage
+        rg_render_stage *stage = &((rg_render_stage *) renderer->render_stages.data)[i];
+
+        // Clear cache
+        rg_vector_clear(&stage->batches);
+
+        // Find the models using the materials using a template using an effect matching the stage
+        rg_vector models = {0, 0, 0, NULL, 0};
+        rg_renderer_check(rg_create_vector(5, sizeof(rg_model_id), &models), NULL);
+
+        rg_storage_it effects_it = rg_storage_iterator(renderer->shader_effects);
+        while (rg_storage_next(&effects_it))
+        {
+            // If the effect supports that kind, add it
+            if (((rg_shader_effect *) effects_it.value)->render_stage_kind == stage->kind)
+            {
+                // For each material template
+                rg_storage_it material_templates_it = rg_storage_iterator(renderer->material_templates);
+                while (rg_storage_next(&material_templates_it))
+                {
+                    // If the material template has that effect, add it
+                    rg_material_template *template = material_templates_it.value;
+                    for (uint32_t j = 0; j < template->shader_effects.count; j++)
+                    {
+                        if (((rg_shader_effect_id *) template->shader_effects.data)[j] == effects_it.id)
+                        {
+                            // For each material
+                            rg_storage_it materials_it = rg_storage_iterator(renderer->materials);
+                            while (rg_storage_next(&materials_it))
+                            {
+                                // If the material has that template, add it
+                                rg_material *material = materials_it.value;
+                                if (material->material_template_id == material_templates_it.id)
+                                {
+                                    // Add a batch
+                                    rg_render_batch batch = {
+                                        .count  = material->models_using_material.count,
+                                        .offset = models.count,
+                                        // TODO find the pipeline
+                                        .pipeline = VK_NULL_HANDLE,
+                                    };
+                                    rg_vector_push_back(&stage->batches, &batch);
+
+                                    // Add the models using that material
+                                    rg_vector_extend(&models,
+                                                     &material->models_using_material.data,
+                                                     material->models_using_material.count);
+
+                                    break;
+                                }
+                            }
+
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // If there is something to render
+        if (models.count > 0)
+        {
+            // Prepare draw indirect commands
+            const VkBufferUsageFlags indirect_buffer_usage =
+                VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+            const VmaMemoryUsage indirect_buffer_memory_usage  = VMA_MEMORY_USAGE_CPU_TO_GPU;
+            const size_t         required_indirect_buffer_size = models.count * sizeof(VkDrawIndirectCommand);
+
+            // If it does not exist, create it
+            if (stage->indirect_buffer.buffer == VK_NULL_HANDLE)
+            {
+                stage->indirect_buffer = rg_renderer_create_buffer(renderer->allocator,
+                                                                   required_indirect_buffer_size,
+                                                                   indirect_buffer_usage,
+                                                                   indirect_buffer_memory_usage);
+            }
+            // If it exists but isn't big enough, recreate it
+            else if (stage->indirect_buffer.size < required_indirect_buffer_size)
+            {
+                rg_renderer_destroy_buffer(renderer->allocator, &stage->indirect_buffer);
+                stage->indirect_buffer = rg_renderer_create_buffer(renderer->allocator,
+                                                                   required_indirect_buffer_size,
+                                                                   indirect_buffer_usage,
+                                                                   indirect_buffer_memory_usage);
+            }
+
+            // At this point, we have an indirect buffer big enough to hold the commands we want to register
+
+            // Register commands
+            VkDrawIndirectCommand *indirect_commands = rg_renderer_map_buffer(renderer->allocator, &stage->indirect_buffer);
+
+            for (uint32_t j = 0; j < models.count; j++)
+            {
+                rg_model *model = rg_vector_get_element(&models, j);
+
+                indirect_commands[j].vertexCount   = 3; // TODO when mesh is added
+                indirect_commands[j].firstVertex   = 0;
+                indirect_commands[j].instanceCount = 1; // TODO when instances are added
+                indirect_commands[j].firstInstance = 0;
+            }
+            rg_renderer_unmap_buffer(renderer->allocator, &stage->indirect_buffer);
+        }
+
+        // Clean up
+        rg_destroy_vector(&models);
+    }
+}
+
+// endregion
+
 // region Renderer functions
 
 rg_renderer *rg_create_renderer(rg_window  *example_window,
@@ -2049,11 +2217,51 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
 
     // endregion
 
+    // --=== Init render stages ===--
+
+    // region Init render stages
+
+    // Stages are hardcoded for now
+    // Using a dynamic array allows us to define a parameter to this function to define the stages
+    renderer->render_stages = rg_create_array(RENDER_STAGE_COUNT, sizeof(rg_render_stage));
+
+    // Init stages
+    for (uint32_t i = 0; i < RENDER_STAGE_COUNT; i++)
+    {
+        rg_render_stage *stage = &((rg_render_stage *) renderer->render_stages.data)[i];
+
+        // Init vector
+        rg_create_vector(5, sizeof(rg_render_batch), &stage->batches);
+
+        // Empty buffer (will be created later)
+        stage->indirect_buffer = (rg_allocated_buffer) {
+            .buffer     = VK_NULL_HANDLE,
+            .allocation = NULL,
+            .size       = 0,
+        };
+    }
+    (((rg_render_stage *) renderer->render_stages.data)[0]).kind = RG_RENDER_STAGE_KIND_GEOMETRY;
+    (((rg_render_stage *) renderer->render_stages.data)[1]).kind = RG_RENDER_STAGE_KIND_LIGHTING;
+
+    // endregion
+
     return renderer;
 }
 
 void rg_destroy_renderer(rg_renderer **renderer)
 {
+    // Wait
+    rg_renderer_wait_for_all_fences(*renderer);
+
+    // Destroy render stages
+    for (uint32_t i = 0; i < (*renderer)->render_stages.count; i++)
+    {
+        rg_render_stage *stage = &((rg_render_stage *) (*renderer)->render_stages.data)[i];
+        rg_destroy_vector(&stage->batches);
+        rg_renderer_destroy_buffer((*renderer)->allocator, &stage->indirect_buffer);
+    }
+    rg_destroy_array(&(*renderer)->render_stages);
+
     // Clear frames
     for (uint32_t i = 0; i < NB_OVERLAPPING_FRAMES; i++)
     {
@@ -2122,6 +2330,18 @@ void rg_destroy_renderer(rg_renderer **renderer)
     // Since we took a double pointer in parameter, we can also set it to null
     // Thus, the user doesn't have to do it themselves
     *renderer = NULL;
+}
+
+void rg_renderer_draw(rg_renderer *renderer)
+{
+    // Wait for the current fence
+    rg_wait_for_current_fence(renderer);
+
+    // Update render stages cache
+    rg_renderer_update_stage_cache(renderer);
+
+    // Increment frame index
+    renderer->current_frame_number++;
 }
 
 // endregion

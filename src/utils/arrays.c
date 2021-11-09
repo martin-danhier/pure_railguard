@@ -217,3 +217,18 @@ void rg_vector_clear(rg_vector *p_vector)
 {
     p_vector->count = 0;
 }
+
+void *rg_vector_extend(rg_vector *vector, void* data, size_t count) {
+    // Ensure that the vector is big enough to hold the new data
+    rg_vector_ensure_capacity(vector, vector->count + count);
+
+    // Add the values
+    void *element = ((char *) vector->data) + (vector->count * vector->element_size);
+    void *new_data = memcpy(element, data, count * vector->element_size);
+
+    if (new_data != NULL) {
+        vector->count += count;
+        return element;
+    }
+    return NULL;
+}

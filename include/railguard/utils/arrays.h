@@ -163,3 +163,5 @@ void rg_vector_clear(rg_vector *p_vector);
 
 rg_vector_it rg_vector_iterator(rg_vector *p_vector);
 bool         rg_vector_next(rg_vector_it *it);
+
+void *rg_vector_extend(rg_vector *vector, void* data, size_t count);

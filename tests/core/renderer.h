@@ -63,6 +63,9 @@ TEST(Renderer_MaterialSystem)
     rg_render_node_id render_node_id = rg_renderer_create_render_node(renderer, model_id);
     EXPECT_TRUE(render_node_id != RG_STORAGE_NULL_ID);
 
+    // Try to draw !
+    rg_renderer_draw(renderer);
+
     // Clean up
     rg_destroy_renderer(&renderer);
     EXPECT_NULL(renderer);

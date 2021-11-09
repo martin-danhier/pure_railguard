@@ -100,6 +100,8 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
  */
 void rg_destroy_renderer(rg_renderer **renderer);
 
+void rg_renderer_draw(rg_renderer *renderer);
+
 /**
  * Links the window to the renderer in the given slot.
  * @param renderer Handle to the renderer.
