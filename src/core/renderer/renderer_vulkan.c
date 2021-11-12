@@ -1325,7 +1325,6 @@ void rg_renderer_end_recording_and_submit(rg_renderer *renderer)
 // endregion
 
 // region Swapchain functions
-
 void rg_init_swapchain_inner(rg_renderer *renderer, rg_swapchain *swapchain, rg_extent_2d extent)
 {
     // region Swapchain creation
@@ -2045,7 +2044,6 @@ void rg_renderer_clear_render_nodes(rg_renderer *renderer)
 }
 
 // endregion
-
 
 // region Stages functions
 

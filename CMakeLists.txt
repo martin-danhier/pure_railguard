@@ -45,6 +45,7 @@ set(sources
         src/utils/storage.c
         src/utils/string.c
         src/utils/memory.c
+        src/utils/math.c
         )
 
 set(test_resources

@@ -10,6 +10,7 @@
 #include "utils/test_storage.h"
 #include "utils/test_event_sender.h"
 #include "utils/test_string.h"
+#include "utils/math.h"
 #include "core/window.h"
 #include "core/renderer.h"
 
