@@ -5,6 +5,7 @@
 #include "../framework/test_framework.h"
 #include <railguard/core/renderer.h>
 #include <railguard/core/window.h>
+#include <railguard/utils/storage.h>
 
 TEST(Renderer_Init)
 {

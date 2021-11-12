@@ -3,16 +3,16 @@
 
 // Import the test files
 // The editor says that they are unused, but they are actually used by the RUN_ALL_TESTS macro
+#include "core/test_renderer.h"
+#include "core/test_window.h"
+#include "utils/test_event_sender.h"
 #include "utils/test_hash_map.h"
+#include "utils/test_io.h"
+#include "utils/test_math.h"
+#include "utils/test_storage.h"
+#include "utils/test_string.h"
 #include "utils/test_struct_map.h"
 #include "utils/test_vector.h"
-#include "utils/test_io.h"
-#include "utils/test_storage.h"
-#include "utils/test_event_sender.h"
-#include "utils/test_string.h"
-#include "utils/math.h"
-#include "core/window.h"
-#include "core/renderer.h"
 
 // Entry point for the tests
 int main(int argc, char** argv)
