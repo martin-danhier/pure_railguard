@@ -24,29 +24,9 @@ typedef enum rg_render_stage_kind
 typedef enum rg_shader_stage
 {
     RG_SHADER_STAGE_INVALID  = 0,
-    RG_SHADER_STAGE_VERTEX  = 1,
+    RG_SHADER_STAGE_VERTEX   = 1,
     RG_SHADER_STAGE_FRAGMENT = 2,
 } rg_shader_stage;
-
-/** An association of the shader and its kind. */
-typedef struct rg_shader_module rg_shader_module;
-
-/**
- * A shader effect defines the whole shader pipeline (what shader_modules are used, in what order, for what render stage...)
- */
-typedef struct rg_shader_effect rg_shader_effect;
-
-/** A material template groups the common base between similar materials. It can be used to create new materials. */
-typedef struct rg_material_template rg_material_template;
-
-/** Defines the appearance of a model (shader effect, texture...) */
-typedef struct rg_material rg_material;
-
-/** Abstract representation of a model that can be instantiated in the world. */
-typedef struct rg_model rg_model;
-
-/** Instance of a model */
-typedef struct rg_render_node rg_render_node;
 
 /**
  * The renderer is an opaque struct that contains all of the data used for rendering.
@@ -60,14 +40,33 @@ typedef struct rg_renderer rg_renderer;
 typedef struct rg_window    rg_window;
 typedef struct rg_extent_2d rg_extent_2d;
 typedef uint32_t            rg_storage_id;
+typedef union rg_vec3       rg_vec3;
+typedef union rg_quat       rg_quat;
 
 // Define aliases for the storage id, that way it is more intuitive to know what the id is referring to.
+
+/** An association of the shader and its kind. */
 typedef rg_storage_id rg_shader_module_id;
+
+/**
+ * A shader effect defines the whole shader pipeline (what shader_modules are used, in what order, for what render stage...)
+ */
 typedef rg_storage_id rg_shader_effect_id;
+
+/** A material template groups the common base between similar materials. It can be used to create new materials. */
 typedef rg_storage_id rg_material_template_id;
+
+/** Defines the appearance of a model (shader effect, texture...) */
 typedef rg_storage_id rg_material_id;
+
+/** Abstract representation of a model that can be instantiated in the world. */
 typedef rg_storage_id rg_model_id;
+
+/** Instance of a model */
 typedef rg_storage_id rg_render_node_id;
+
+/** Camera that can be used to render the world. */
+typedef rg_storage_id rg_camera_id;
 
 // --==== Defines ====--
 
@@ -110,6 +109,8 @@ void rg_renderer_draw(rg_renderer *renderer);
  * @param window Window that will be linked to the renderer.
  */
 void rg_renderer_add_window(rg_renderer *renderer, uint32_t window_index, rg_window *window);
+
+// region Material, Model and Node system
 
 /**
  * Loads a shader from the given file. The language of the shader depends on the used backend.
@@ -215,3 +216,27 @@ rg_render_node_id rg_renderer_create_render_node(rg_renderer *renderer, rg_model
  * @param render_node_id the id of the render node to destroy
  */
 void rg_renderer_destroy_render_node(rg_renderer *renderer, rg_render_node_id render_node_id);
+
+// endregion
+
+// region Cameras
+
+rg_camera_id rg_renderer_add_orthographic_camera(rg_renderer *renderer, uint32_t window_index, float width, float height, float near, float far);
+rg_camera_id rg_renderer_add_perspective_camera(rg_renderer *renderer, uint32_t window_index, float fov, float aspect, float near, float far);
+rg_camera_id rg_renderer_add_orthographic_camera_with_transform(rg_renderer *renderer, uint32_t window_index, float width, float height, float near, float far, rg_vec3 position, rg_quat rotation, rg_vec3 scale);
+rg_camera_id rg_renderer_add_perspective_camera_with_transform(rg_renderer *renderer, uint32_t window_index, float fov, float aspect, float near, float far, rg_vec3 position, rg_quat rotation, rg_vec3 scale);
+
+void rg_renderer_remove_camera(rg_renderer *renderer, rg_camera_id camera_id);
+
+void rg_renderer_set_camera_position(rg_renderer *renderer, rg_camera_id camera_id, rg_vec3 position);
+void rg_renderer_set_camera_rotation(rg_renderer *renderer, rg_camera_id camera_id, rg_quat rotation);
+void rg_renderer_set_camera_scale(rg_renderer *renderer, rg_camera_id camera_id, rg_vec3 scale);
+
+void rg_renderer_rotate_camera(rg_renderer *renderer, rg_camera_id camera_id, rg_quat rotation);
+void rg_renderer_translate_camera(rg_renderer *renderer, rg_camera_id camera_id, rg_vec3 translation);
+void rg_renderer_scale_camera(rg_renderer *renderer, rg_camera_id camera_id, rg_vec3 scale);
+
+void rg_renderer_disable_camera(rg_renderer *renderer, rg_camera_id camera_id);
+void rg_renderer_enable_camera(rg_renderer *renderer, rg_camera_id camera_id);
+
+// endregion

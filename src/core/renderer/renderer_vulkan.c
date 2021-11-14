@@ -3,6 +3,8 @@
 
 #include "railguard/core/renderer.h"
 #include <railguard/utils/event_sender.h>
+#include <railguard/utils/io.h>
+#include <railguard/utils/memory.h>
 #include <railguard/utils/storage.h>
 
 #include <stdbool.h>
@@ -11,8 +13,7 @@
 #include <string.h>
 #include <volk.h>
 // Needs to be after volk
-#include <railguard/utils/io.h>
-#include <railguard/utils/memory.h>
+#include <railguard/utils/math.h>
 
 #include <vk_mem_alloc.h>
 
@@ -170,6 +171,42 @@ typedef struct rg_render_stage
     rg_vector            batches;
 } rg_render_stage;
 
+// = Cameras =
+
+typedef enum rg_camera_type
+{
+    RG_CAMERA_TYPE_PERSPECTIVE,
+    RG_CAMERA_TYPE_ORTHOGRAPHIC,
+} rg_camera_type;
+
+typedef struct rg_camera
+{
+    bool           enabled;
+    size_t         target_swapchain_index;
+    rg_camera_type type;
+    rg_vec3        position;
+    rg_vec3        scale;
+    rg_quat        rotation;
+    // The following differs from the camera type
+    union
+    {
+        struct
+        {
+            float fov;
+            float aspect_ratio;
+            float near_plane;
+            float far_plane;
+        } perspective;
+        struct
+        {
+            float width;
+            float height;
+            float near_plane;
+            float far_plane;
+        } orthographic;
+    };
+} rg_camera;
+
 // = Global renderer =
 
 typedef struct rg_renderer
@@ -188,7 +225,8 @@ typedef struct rg_renderer
      * We place them in a array to be able to efficiently iterate through them. And because their number won't change, we can safely
      * send pointers to individual swapchains around.
      */
-    rg_array swapchains;
+    rg_array    swapchains;
+    rg_storage *cameras;
 
     // Frame management
 
@@ -785,6 +823,172 @@ static inline void rg_renderer_wait_for_fence(rg_renderer *renderer, VkFence fen
 // endregion
 
 // --==== RENDERER ====--
+
+// region Camera functions
+
+rg_camera_id rg_renderer_add_orthographic_camera_with_transform(rg_renderer *renderer,
+                                                                uint32_t     window_index,
+                                                                float        width,
+                                                                float        height,
+                                                                float        near,
+                                                                float        far,
+                                                                rg_vec3      position,
+                                                                rg_quat      rotation,
+                                                                rg_vec3      scale)
+{
+    rg_camera new_camera = {
+        .target_swapchain_index = window_index,
+        .type                   = RG_CAMERA_TYPE_ORTHOGRAPHIC,
+        .orthographic =
+            {
+                .width      = width,
+                .height     = height,
+                .near_plane = near,
+                .far_plane  = far,
+            },
+        .position = position,
+        .rotation = rotation,
+        .scale    = scale,
+        .enabled  = true,
+    };
+    // Add the camera
+    return rg_storage_push(renderer->cameras, &new_camera);
+}
+
+rg_camera_id rg_renderer_add_perspective_camera_with_transform(rg_renderer *renderer,
+                                                               uint32_t     window_index,
+                                                               float        fov,
+                                                               float        aspect,
+                                                               float        near,
+                                                               float        far,
+                                                               rg_vec3      position,
+                                                               rg_quat      rotation,
+                                                               rg_vec3      scale)
+{
+    rg_camera new_camera = {
+        .target_swapchain_index = window_index,
+        .type                   = RG_CAMERA_TYPE_PERSPECTIVE,
+        .perspective =
+            {
+                .fov          = fov,
+                .aspect_ratio = aspect,
+                .near_plane   = near,
+                .far_plane    = far,
+            },
+        .position = position,
+        .rotation = rotation,
+        .scale    = scale,
+        .enabled  = true,
+    };
+    // Add the camera
+    return rg_storage_push(renderer->cameras, &new_camera);
+}
+
+rg_camera_id
+    rg_renderer_add_orthographic_camera(rg_renderer *renderer, uint32_t window_index, float width, float height, float near, float far)
+{
+    return rg_renderer_add_orthographic_camera_with_transform(renderer,
+                                                              window_index,
+                                                              width,
+                                                              height,
+                                                              near,
+                                                              far,
+                                                              rg_vec3_zero(),
+                                                              rg_quat_identity(),
+                                                              rg_vec3_one());
+}
+rg_camera_id
+    rg_renderer_add_perspective_camera(rg_renderer *renderer, uint32_t window_index, float fov, float aspect, float near, float far)
+{
+    return rg_renderer_add_perspective_camera_with_transform(renderer,
+                                                             window_index,
+                                                             fov,
+                                                             aspect,
+                                                             near,
+                                                             far,
+                                                             rg_vec3_zero(),
+                                                             rg_quat_identity(),
+                                                             rg_vec3_one());
+}
+
+void rg_renderer_remove_camera(rg_renderer *renderer, rg_camera_id camera_id)
+{
+    // Delete the camera
+    rg_storage_erase(renderer->cameras, camera_id);
+}
+
+void rg_renderer_set_camera_position(rg_renderer *renderer, rg_camera_id camera_id, rg_vec3 position)
+{
+    rg_camera *camera = rg_storage_get(renderer->cameras, camera_id);
+    if (camera)
+    {
+        camera->position = position;
+    }
+}
+
+void rg_renderer_set_camera_rotation(rg_renderer *renderer, rg_camera_id camera_id, rg_quat rotation)
+{
+    rg_camera *camera = rg_storage_get(renderer->cameras, camera_id);
+    if (camera)
+    {
+        camera->rotation = rotation;
+    }
+}
+
+void rg_renderer_set_camera_scale(rg_renderer *renderer, rg_camera_id camera_id, rg_vec3 scale)
+{
+    rg_camera *camera = rg_storage_get(renderer->cameras, camera_id);
+    if (camera)
+    {
+        camera->scale = scale;
+    }
+}
+
+void rg_renderer_rotate_camera(rg_renderer *renderer, rg_camera_id camera_id, rg_quat rotation)
+{
+    rg_camera *camera = rg_storage_get(renderer->cameras, camera_id);
+    if (camera)
+    {
+        camera->rotation = rg_quat_mul(camera->rotation, rotation);
+    }
+}
+void rg_renderer_translate_camera(rg_renderer *renderer, rg_camera_id camera_id, rg_vec3 translation)
+{
+    rg_camera *camera = rg_storage_get(renderer->cameras, camera_id);
+    if (camera)
+    {
+        camera->position = rg_vec3_add(camera->position, translation);
+    }
+}
+
+void rg_renderer_scale_camera(rg_renderer *renderer, rg_camera_id camera_id, rg_vec3 scale)
+{
+    rg_camera *camera = rg_storage_get(renderer->cameras, camera_id);
+    if (camera)
+    {
+        camera->scale = rg_vec3_mul(camera->scale, scale);
+    }
+}
+
+void rg_renderer_disable_camera(rg_renderer *renderer, rg_camera_id camera_id)
+{
+    rg_camera *camera = rg_storage_get(renderer->cameras, camera_id);
+    if (camera)
+    {
+        camera->enabled = false;
+    }
+}
+
+void rg_renderer_enable_camera(rg_renderer *renderer, rg_camera_id camera_id)
+{
+    rg_camera *camera = rg_storage_get(renderer->cameras, camera_id);
+    if (camera)
+    {
+        camera->enabled = true;
+    }
+}
+
+// endregion
 
 // region Shaders functions
 
@@ -2541,6 +2745,7 @@ rg_renderer *rg_create_renderer(rg_window  *example_window,
     renderer->models             = rg_create_storage(sizeof(rg_model));
     renderer->render_nodes       = rg_create_storage(sizeof(rg_render_node));
     renderer->effects_version    = 0;
+    renderer->cameras            = rg_create_storage(sizeof(rg_camera));
 
     // --=== Init frames ===--
 
@@ -2606,6 +2811,9 @@ void rg_destroy_renderer(rg_renderer **renderer)
 {
     // Wait
     rg_renderer_wait_for_all_fences(*renderer);
+
+    // Destroy cameras
+    rg_destroy_storage(&(*renderer)->cameras);
 
     // Clear frames
     for (uint32_t i = 0; i < NB_OVERLAPPING_FRAMES; i++)
@@ -2679,6 +2887,12 @@ void rg_destroy_renderer(rg_renderer **renderer)
 
 void rg_renderer_draw(rg_renderer *renderer)
 {
+    if (rg_storage_count(renderer->cameras) == 0)
+    {
+        // No camera, nothing to draw
+        return;
+    }
+
     // Get current frame
     uint64_t       current_frame_index = rg_renderer_get_current_frame_index(renderer);
     rg_frame_data *current_frame       = &renderer->frames[current_frame_index];
@@ -2686,12 +2900,18 @@ void rg_renderer_draw(rg_renderer *renderer)
     // Wait for the fence
     rg_renderer_wait_for_fence(renderer, current_frame->render_fence);
 
-    for (uint32_t i = 0; i < renderer->swapchains.count; i++)
+    // For each camera
+    rg_storage_it it = rg_storage_iterator(renderer->cameras);
+    while (rg_storage_next(&it))
     {
-        rg_swapchain *swapchain = &((rg_swapchain *) renderer->swapchains.data)[i];
+        rg_camera *camera = it.value;
 
-        if (swapchain->enabled)
+        if (camera->enabled)
         {
+            // Get swapchain
+            rg_swapchain *swapchain = &((rg_swapchain *) renderer->swapchains.data)[camera->target_swapchain_index];
+            rg_renderer_check(swapchain->enabled, "The target window must exist.");
+
             // Update pipelines if needed
             rg_renderer_build_out_of_date_effects(swapchain);
 
@@ -2729,7 +2949,6 @@ void rg_renderer_draw(rg_renderer *renderer)
             rg_renderer_draw_from_cache(&((rg_render_stage *) swapchain->render_stages.data)[1], current_frame->command_buffer);
 
             vkCmdEndRenderPass(current_frame->command_buffer);
-
 
             // End recording
             rg_renderer_end_recording_and_submit(renderer);

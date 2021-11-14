@@ -57,6 +57,9 @@ rg_engine *rg_create_engine(void)
     // Create a render node
     rg_render_node_id render_node_id = rg_renderer_create_render_node(engine->renderer, model_id);
 
+    // Create a camera
+    rg_renderer_add_orthographic_camera(engine->renderer, 0, (float) window_extent.width, (float) window_extent.height, 0.1f, 100.0f);
+
     return engine;
 }
 

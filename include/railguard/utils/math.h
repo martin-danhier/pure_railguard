@@ -150,6 +150,11 @@ static inline rg_vec3 rg_vec3_sub(const rg_vec3 a, const rg_vec3 b)
     return (rg_vec3) {.x = a.x - b.x, .y = a.y - b.y, .z = a.z - b.z};
 }
 
+static inline rg_vec3 rg_vec3_mul(const rg_vec3 a, const rg_vec3 b)
+{
+    return (rg_vec3) {.x = a.x * b.x, .y = a.y * b.y, .z = a.z * b.z};
+}
+
 static inline float rg_vec3_dot(const rg_vec3 a, const rg_vec3 b)
 {
     return a.x * b.x + a.y * b.y + a.z * b.z;
@@ -173,6 +178,16 @@ static inline rg_vec3 rg_vec3_normalize(const rg_vec3 v)
 static inline bool rg_vec3_equals(const rg_vec3 a, const rg_vec3 b)
 {
     return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
+static inline rg_vec3 rg_vec3_zero(void)
+{
+    return (rg_vec3) {.x = 0.0f, .y = 0.0f, .z = 0.0f};
+}
+
+static inline rg_vec3 rg_vec3_one(void)
+{
+    return (rg_vec3) {.x = 1.0f, .y = 1.0f, .z = 1.0f};
 }
 
 // endregion
